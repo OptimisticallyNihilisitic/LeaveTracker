@@ -1,0 +1,575 @@
+import { useEffect, useState } from "react";
+import { useAuth } from "../context/AuthContext";
+import {
+  getPolicies, upsertPolicy,
+  getHolidays, addHoliday, deleteHoliday,
+  createUser, deleteUser, assignManager, getAllUsers,
+} from "../api/admin";
+
+type Tab = "users" | "hierarchy" | "policy" | "holidays";
+
+interface UserRecord {
+  id: string;
+  name: string;
+  email: string;
+  employee_id: string;
+  role: "employee" | "manager" | "admin";
+  manager_id: string | null;
+}
+
+const ROLE_STYLES: Record<string, string> = {
+  employee: "bg-emerald-100 text-emerald-700",
+  manager:  "bg-blue-100 text-blue-700",
+  admin:    "bg-violet-100 text-violet-700",
+};
+
+export default function AdminPanel() {
+  const { token } = useAuth();
+  const [activeTab, setActiveTab] = useState<Tab>("users");
+
+  // ── Shared ─────────────────────────────────────────────
+  const [error, setError]   = useState("");
+  const [success, setSuccess] = useState("");
+
+  // ── Users ──────────────────────────────────────────────
+  const [users, setUsers] = useState<UserRecord[]>([]);
+  const [usersLoading, setUsersLoading] = useState(true);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [userForm, setUserForm] = useState({
+    name: "", email: "", employee_id: "", password: "",
+    role: "employee" as "employee" | "manager" | "admin",
+    manager_id: "",
+  });
+  const [userFormLoading, setUserFormLoading] = useState(false);
+  const [showUserForm, setShowUserForm] = useState(false);
+
+  // ── Hierarchy ──────────────────────────────────────────
+  const [hierarchyChanges, setHierarchyChanges] = useState<Record<string, string | null>>({});
+  const [savingHierarchy, setSavingHierarchy] = useState(false);
+
+  // ── Policy ─────────────────────────────────────────────
+  const [policies, setPolicies] = useState<any[]>([]);
+  const [policyForm, setPolicyForm] = useState({
+    year: new Date().getFullYear(),
+    sick_leaves: 0, casual_leaves: 0, floater_leaves: 0,
+  });
+  const [policyLoading, setPolicyLoading] = useState(false);
+
+  // ── Holidays ───────────────────────────────────────────
+  const [holidays, setHolidays] = useState<any[]>([]);
+  const [holidayForm, setHolidayForm] = useState({ policy_id: "", name: "", date: "" });
+  const [holidayLoading, setHolidayLoading] = useState(false);
+  const [deletingHolidayId, setDeletingHolidayId] = useState<string | null>(null);
+
+  // ── Fetch ──────────────────────────────────────────────
+  const fetchUsers = async () => {
+    if (!token) return;
+    setUsersLoading(true);
+    try {
+      const data = await getAllUsers(token);
+      setUsers(data);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setUsersLoading(false);
+    }
+  };
+
+  const fetchPoliciesAndHolidays = async () => {
+    if (!token) return;
+    try {
+      const [p, h] = await Promise.all([getPolicies(token), getHolidays(token)]);
+      setPolicies(p);
+      setHolidays(h);
+      if (p.length > 0) {
+        const latest = p[0];
+        setPolicyForm({
+          year: latest.year,
+          sick_leaves: latest.sick_leaves,
+          casual_leaves: latest.casual_leaves,
+          floater_leaves: latest.floater_leaves,
+        });
+        setHolidayForm((f) => ({ ...f, policy_id: latest.id }));
+      }
+    } catch (err: any) {
+      setError(err.message);
+    }
+  };
+
+  useEffect(() => {
+    fetchUsers();
+    fetchPoliciesAndHolidays();
+  }, [token]);
+
+  const notify = (msg: string, isError = false) => {
+    if (isError) { setError(msg); setSuccess(""); }
+    else { setSuccess(msg); setError(""); }
+    setTimeout(() => { setError(""); setSuccess(""); }, 4000);
+  };
+
+  // ── User creation ──────────────────────────────────────
+  const handleCreateUser = async () => {
+    const { name, email, employee_id, password, role, manager_id } = userForm;
+    if (!name || !email || !employee_id || !password) {
+      notify("Name, email, employee ID and password are required.", true); return;
+    }
+    setUserFormLoading(true);
+    try {
+      await createUser(token!, {
+        name, email, employee_id, password, role,
+        manager_id: manager_id || null,
+      });
+      notify(`User ${name} created successfully.`);
+      setUserForm({ name: "", email: "", employee_id: "", password: "", role: "employee", manager_id: "" });
+      setShowUserForm(false);
+      fetchUsers();
+    } catch (err: any) {
+      notify(err.message, true);
+    } finally {
+      setUserFormLoading(false);
+    }
+  };
+
+  const handleDeleteUser = async (id: string, name: string) => {
+    if (!confirm(`Delete user "${name}"? This cannot be undone.`)) return;
+    setDeletingId(id);
+    try {
+      await deleteUser(token!, id);
+      notify(`User ${name} deleted.`);
+      fetchUsers();
+    } catch (err: any) {
+      notify(err.message, true);
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  // ── Hierarchy ──────────────────────────────────────────
+  const handleSaveHierarchy = async () => {
+    setSavingHierarchy(true);
+    try {
+      await Promise.all(
+        Object.entries(hierarchyChanges).map(([userId, managerId]) =>
+          assignManager(token!, userId, managerId)
+        )
+      );
+      setHierarchyChanges({});
+      notify("Hierarchy saved successfully.");
+      fetchUsers();
+    } catch (err: any) {
+      notify(err.message, true);
+    } finally {
+      setSavingHierarchy(false);
+    }
+  };
+
+  const getManagerName = (managerId: string | null) => {
+    if (!managerId) return "—";
+    return users.find((u) => u.id === managerId)?.name ?? "—";
+  };
+
+  // ── Policy ─────────────────────────────────────────────
+  const handlePolicySubmit = async () => {
+    setPolicyLoading(true);
+    try {
+      await upsertPolicy(token!, policyForm);
+      notify("Policy saved successfully.");
+      fetchPoliciesAndHolidays();
+    } catch (err: any) {
+      notify(err.message, true);
+    } finally {
+      setPolicyLoading(false);
+    }
+  };
+
+  // ── Holidays ───────────────────────────────────────────
+  const handleAddHoliday = async () => {
+    if (!holidayForm.policy_id || !holidayForm.name || !holidayForm.date) {
+      notify("Policy, name and date are required.", true); return;
+    }
+    setHolidayLoading(true);
+    try {
+      await addHoliday(token!, holidayForm);
+      setHolidayForm((f) => ({ ...f, name: "", date: "" }));
+      notify("Holiday added.");
+      fetchPoliciesAndHolidays();
+    } catch (err: any) {
+      notify(err.message, true);
+    } finally {
+      setHolidayLoading(false);
+    }
+  };
+
+  const handleDeleteHoliday = async (id: string) => {
+    setDeletingHolidayId(id);
+    try {
+      await deleteHoliday(token!, id);
+      notify("Holiday deleted.");
+      fetchPoliciesAndHolidays();
+    } catch (err: any) {
+      notify(err.message, true);
+    } finally {
+      setDeletingHolidayId(null);
+    }
+  };
+
+  const formatDate = (d: string) =>
+    new Date(d).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+
+  const tabs: { key: Tab; label: string }[] = [
+    { key: "users",     label: "Users" },
+    { key: "hierarchy", label: "Reporting Hierarchy" },
+    { key: "policy",    label: "Leave Policy" },
+    { key: "holidays",  label: "Holidays" },
+  ];
+
+  // ── Non-admin users eligible to be managers ────────────
+  const managerOptions = users.filter((u) => u.role === "manager" || u.role === "admin");
+
+  return (
+    <div className="space-y-6 max-w-5xl">
+      {/* Header */}
+      <div>
+        <h2 className="text-xl font-bold text-slate-800">Admin Panel</h2>
+        <p className="text-sm text-slate-500 mt-0.5">Manage users, hierarchy, leave policies and holidays</p>
+      </div>
+
+      {/* Global alerts */}
+      {error && (
+        <div className="px-4 py-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-600 text-sm font-medium">{error}</div>
+      )}
+      {success && (
+        <div className="px-4 py-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-700 text-sm font-medium">{success}</div>
+      )}
+
+      {/* Tabs */}
+      <div className="flex gap-1.5 bg-slate-100 rounded-xl p-1 w-fit">
+        {tabs.map((tab) => (
+          <button key={tab.key} onClick={() => setActiveTab(tab.key)}
+            className={`px-5 py-2 rounded-lg text-sm font-semibold transition-all ${
+              activeTab === tab.key ? "bg-white text-slate-800 shadow-sm" : "text-slate-500 hover:text-slate-700"
+            }`}>
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {/* ── USERS TAB ── */}
+      {activeTab === "users" && (
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-8 space-y-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="font-bold text-slate-800">All Users</h3>
+              <p className="text-sm text-slate-500 mt-0.5">Create, view and delete user accounts</p>
+            </div>
+            <button onClick={() => setShowUserForm((v) => !v)}
+              className="bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-semibold px-4 py-2 rounded-xl transition-colors shadow-sm">
+              {showUserForm ? "Cancel" : "+ Add User"}
+            </button>
+          </div>
+
+          {/* Create user form */}
+          {showUserForm && (
+            <div className="bg-slate-50 rounded-2xl border border-slate-200 p-6 space-y-4">
+              <h4 className="font-semibold text-slate-700">New User</h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {[
+                  { key: "name",        label: "Full Name",    type: "text",     placeholder: "e.g. Revathi V" },
+                  { key: "email",       label: "Email",        type: "email",    placeholder: "e.g. revathi@company.com" },
+                  { key: "employee_id", label: "Employee ID",  type: "text",     placeholder: "e.g. EMP003" },
+                  { key: "password",    label: "Password",     type: "password", placeholder: "Min. 8 characters" },
+                ].map(({ key, label, type, placeholder }) => (
+                  <div key={key}>
+                    <label className="block text-sm font-semibold text-slate-700 mb-1.5">{label}</label>
+                    <input type={type} placeholder={placeholder}
+                      value={userForm[key as keyof typeof userForm] as string}
+                      onChange={(e) => setUserForm((f) => ({ ...f, [key]: e.target.value }))}
+                      className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white" />
+                  </div>
+                ))}
+
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-1.5">Role</label>
+                  <select value={userForm.role}
+                    onChange={(e) => setUserForm((f) => ({ ...f, role: e.target.value as any }))}
+                    className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white appearance-none">
+                    <option value="employee">Employee</option>
+                    <option value="manager">Manager</option>
+                    <option value="admin">Admin</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-1.5">Reports To (optional)</label>
+                  <select value={userForm.manager_id}
+                    onChange={(e) => setUserForm((f) => ({ ...f, manager_id: e.target.value }))}
+                    className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white appearance-none">
+                    <option value="">No manager</option>
+                    {managerOptions.map((u) => (
+                      <option key={u.id} value={u.id}>{u.name} ({u.role})</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <button onClick={handleCreateUser} disabled={userFormLoading}
+                className="bg-emerald-500 hover:bg-emerald-600 disabled:opacity-60 text-white font-semibold px-6 py-2.5 rounded-xl transition-colors shadow-sm">
+                {userFormLoading ? "Creating..." : "Create User"}
+              </button>
+            </div>
+          )}
+
+          {/* Users table */}
+          <div className="overflow-x-auto rounded-xl border border-slate-200">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-slate-50 border-b border-slate-200">
+                  {["Employee ID", "Name", "Email", "Role", "Reports To", ""].map((h, i) => (
+                    <th key={i} className="text-left px-5 py-3 text-xs font-bold uppercase tracking-wider text-slate-500">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {usersLoading ? (
+                  <tr><td colSpan={6} className="px-5 py-8 text-center text-slate-400">Loading...</td></tr>
+                ) : users.length === 0 ? (
+                  <tr><td colSpan={6} className="px-5 py-8 text-center text-slate-400">No users yet.</td></tr>
+                ) : users.map((u) => (
+                  <tr key={u.id} className="hover:bg-slate-50 transition-colors">
+                    <td className="px-5 py-4 text-slate-500 font-mono text-xs">{u.employee_id}</td>
+                    <td className="px-5 py-4 font-semibold text-slate-800">{u.name}</td>
+                    <td className="px-5 py-4 text-slate-600">{u.email}</td>
+                    <td className="px-5 py-4">
+                      <span className={`text-xs font-semibold px-2.5 py-1 rounded-full capitalize ${ROLE_STYLES[u.role]}`}>
+                        {u.role}
+                      </span>
+                    </td>
+                    <td className="px-5 py-4 text-slate-500">{getManagerName(u.manager_id)}</td>
+                    <td className="px-5 py-4">
+                      <button onClick={() => handleDeleteUser(u.id, u.name)} disabled={deletingId === u.id}
+                        className="text-xs font-semibold text-rose-500 hover:text-rose-600 border border-rose-200 hover:border-rose-300 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50">
+                        {deletingId === u.id ? "..." : "Delete"}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* ── HIERARCHY TAB ── */}
+      {activeTab === "hierarchy" && (
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-8 space-y-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="font-bold text-slate-800">Reporting Hierarchy</h3>
+              <p className="text-sm text-slate-500 mt-0.5">Set who each user reports to. Changes are batched — click Save when done.</p>
+            </div>
+            {Object.keys(hierarchyChanges).length > 0 && (
+              <button onClick={handleSaveHierarchy} disabled={savingHierarchy}
+                className="bg-emerald-500 hover:bg-emerald-600 disabled:opacity-60 text-white font-semibold px-5 py-2.5 rounded-xl transition-colors shadow-sm text-sm">
+                {savingHierarchy ? "Saving..." : `Save ${Object.keys(hierarchyChanges).length} change${Object.keys(hierarchyChanges).length > 1 ? "s" : ""}`}
+              </button>
+            )}
+          </div>
+
+          <div className="overflow-x-auto rounded-xl border border-slate-200">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-slate-50 border-b border-slate-200">
+                  {["Employee", "Role", "Currently Reports To", "Change To"].map((h) => (
+                    <th key={h} className="text-left px-5 py-3 text-xs font-bold uppercase tracking-wider text-slate-500">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {usersLoading ? (
+                  <tr><td colSpan={4} className="px-5 py-8 text-center text-slate-400">Loading...</td></tr>
+                ) : users.map((u) => {
+                  const currentManagerId = hierarchyChanges.hasOwnProperty(u.id)
+                    ? hierarchyChanges[u.id]
+                    : u.manager_id;
+                  const isDirty = hierarchyChanges.hasOwnProperty(u.id);
+
+                  return (
+                    <tr key={u.id} className={`transition-colors ${isDirty ? "bg-amber-50" : "hover:bg-slate-50"}`}>
+                      <td className="px-5 py-4">
+                        <p className="font-semibold text-slate-800">{u.name}</p>
+                        <p className="text-xs text-slate-400 font-mono">{u.employee_id}</p>
+                      </td>
+                      <td className="px-5 py-4">
+                        <span className={`text-xs font-semibold px-2.5 py-1 rounded-full capitalize ${ROLE_STYLES[u.role]}`}>
+                          {u.role}
+                        </span>
+                      </td>
+                      <td className="px-5 py-4 text-slate-500">{getManagerName(u.manager_id)}</td>
+                      <td className="px-5 py-4">
+                        <select
+                          value={currentManagerId ?? ""}
+                          onChange={(e) => {
+                            const val = e.target.value || null;
+                            // If reverted to original, remove from changes
+                            if (val === u.manager_id) {
+                              setHierarchyChanges((prev) => {
+                                const next = { ...prev };
+                                delete next[u.id];
+                                return next;
+                              });
+                            } else {
+                              setHierarchyChanges((prev) => ({ ...prev, [u.id]: val }));
+                            }
+                          }}
+                          className="px-3 py-2 border border-slate-200 rounded-xl text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white appearance-none">
+                          <option value="">No manager</option>
+                          {users
+                            .filter((m) => m.id !== u.id) // can't report to self
+                            .map((m) => (
+                              <option key={m.id} value={m.id}>{m.name} ({m.role})</option>
+                            ))}
+                        </select>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* ── POLICY TAB ── */}
+      {activeTab === "policy" && (
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-8 space-y-6">
+          <div>
+            <h3 className="font-bold text-slate-800">Leave Policy</h3>
+            <p className="text-sm text-slate-500 mt-0.5">Set annual leave quotas per year. Saving will create or update the policy for that year.</p>
+          </div>
+
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 mb-1.5">Year</label>
+              <input type="number" value={policyForm.year}
+                onChange={(e) => setPolicyForm((p) => ({ ...p, year: +e.target.value }))}
+                className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-slate-50" />
+            </div>
+            {[
+              { key: "sick_leaves",    label: "Sick Leaves" },
+              { key: "casual_leaves",  label: "Casual Leaves" },
+              { key: "floater_leaves", label: "Floater Leaves" },
+            ].map(({ key, label }) => (
+              <div key={key}>
+                <label className="block text-sm font-semibold text-slate-700 mb-1.5">{label}</label>
+                <input type="number" min={0}
+                  value={policyForm[key as keyof typeof policyForm]}
+                  onChange={(e) => setPolicyForm((p) => ({ ...p, [key]: +e.target.value }))}
+                  className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-slate-50" />
+              </div>
+            ))}
+          </div>
+
+          <button onClick={handlePolicySubmit} disabled={policyLoading}
+            className="bg-emerald-500 hover:bg-emerald-600 disabled:opacity-60 text-white font-semibold px-6 py-2.5 rounded-xl transition-colors shadow-sm">
+            {policyLoading ? "Saving..." : "Save Policy"}
+          </button>
+
+          {policies.length > 0 && (
+            <div className="overflow-x-auto rounded-xl border border-slate-200">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-slate-50 border-b border-slate-200">
+                    {["Year", "Sick", "Casual", "Floater"].map((h) => (
+                      <th key={h} className="text-left px-5 py-3 text-xs font-bold uppercase tracking-wider text-slate-500">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {policies.map((p) => (
+                    <tr key={p.id} className="hover:bg-slate-50">
+                      <td className="px-5 py-3 font-semibold text-slate-700">{p.year}</td>
+                      <td className="px-5 py-3 text-slate-600">{p.sick_leaves}</td>
+                      <td className="px-5 py-3 text-slate-600">{p.casual_leaves}</td>
+                      <td className="px-5 py-3 text-slate-600">{p.floater_leaves}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── HOLIDAYS TAB ── */}
+      {activeTab === "holidays" && (
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-8 space-y-6">
+          <div>
+            <h3 className="font-bold text-slate-800">Holidays</h3>
+            <p className="text-sm text-slate-500 mt-0.5">Add or remove holidays for any policy year.</p>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 mb-1.5">Policy Year</label>
+              <select value={holidayForm.policy_id}
+                onChange={(e) => setHolidayForm((f) => ({ ...f, policy_id: e.target.value }))}
+                className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-slate-50 appearance-none">
+                <option value="">Select year</option>
+                {policies.map((p) => (
+                  <option key={p.id} value={p.id}>{p.year}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 mb-1.5">Holiday Name</label>
+              <input type="text" value={holidayForm.name} placeholder="e.g. Pongal"
+                onChange={(e) => setHolidayForm((f) => ({ ...f, name: e.target.value }))}
+                className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-slate-50" />
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 mb-1.5">Date</label>
+              <input type="date" value={holidayForm.date}
+                onChange={(e) => setHolidayForm((f) => ({ ...f, date: e.target.value }))}
+                className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-slate-50" />
+            </div>
+            <div className="flex items-end">
+              <button onClick={handleAddHoliday} disabled={holidayLoading}
+                className="w-full bg-emerald-500 hover:bg-emerald-600 disabled:opacity-60 text-white font-semibold py-3 rounded-xl transition-colors shadow-sm">
+                {holidayLoading ? "Adding..." : "Add Holiday"}
+              </button>
+            </div>
+          </div>
+
+          <div className="overflow-x-auto rounded-xl border border-slate-200">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-slate-50 border-b border-slate-200">
+                  {["Year", "Holiday", "Date", ""].map((h, i) => (
+                    <th key={i} className="text-left px-5 py-3 text-xs font-bold uppercase tracking-wider text-slate-500">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {holidays.length === 0 ? (
+                  <tr><td colSpan={4} className="px-5 py-8 text-center text-slate-400">No holidays added yet.</td></tr>
+                ) : holidays.map((h) => (
+                  <tr key={h.id} className="hover:bg-slate-50 transition-colors">
+                    <td className="px-5 py-3.5 text-slate-500">{h.policies?.year ?? "—"}</td>
+                    <td className="px-5 py-3.5 font-semibold text-slate-700">{h.name}</td>
+                    <td className="px-5 py-3.5 text-slate-600">{formatDate(h.date)}</td>
+                    <td className="px-5 py-3.5">
+                      <button onClick={() => handleDeleteHoliday(h.id)} disabled={deletingHolidayId === h.id}
+                        className="text-xs font-semibold text-rose-500 hover:text-rose-600 border border-rose-200 hover:border-rose-300 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50">
+                        {deletingHolidayId === h.id ? "..." : "Delete"}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
