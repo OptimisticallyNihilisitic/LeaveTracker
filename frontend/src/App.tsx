@@ -2,18 +2,16 @@ import { useAuth, AuthProvider } from "./context/AuthContext";
 import Login from "./pages/Login";
 import Layout from "./components/Layout";
 import Dashboard from "./pages/Dashboard";
-import Attendance from "./pages/Attendance";
 import ApplyLeave from "./pages/ApplyLeave";
 import Leaves from "./pages/Leaves";
 import HolidayCalendar from "./pages/HolidayCalendar";
-import RegularizeAttendance from "./pages/RegularizeAttendance";
 import LeaveApprovals from "./pages/LeaveApprovals";
 import AdminPanel from "./pages/AdminPanel";
 import { useState } from "react";
 
 type Page =
-  | "dashboard" | "attendance" | "apply-leave" | "leaves"
-  | "holiday-calendar" | "regularize-attendance" | "leave-approvals"
+  | "dashboard" | "apply-leave" | "leaves"
+  | "holiday-calendar" | "leave-approvals"
   | "admin-panel";
 
 function AppInner() {
@@ -30,8 +28,6 @@ function AppInner() {
 
   if (!user) return <Login />;
 
-  // Admin lands on admin-panel
-  const defaultPage: Page = user.role === "admin" ? "admin-panel" : "dashboard";
   const activePage = currentPage === "dashboard" && user.role === "admin" ? "admin-panel" : currentPage;
 
   const handleNavigate = (page: string) => {
@@ -47,11 +43,9 @@ function AppInner() {
   const renderPage = () => {
     switch (activePage) {
       case "dashboard":             return <Dashboard />;
-      case "attendance":            return <Attendance />;
-      case "apply-leave":           return user.role === "employee" ? <ApplyLeave /> : <Dashboard />;
+      case "apply-leave":           return (user.role === "employee" || user.role === "manager") ? <ApplyLeave /> : <Dashboard />;
       case "leaves":                return <Leaves />;
       case "holiday-calendar":      return <HolidayCalendar />;
-      case "regularize-attendance": return user.role === "employee" ? <RegularizeAttendance /> : <Dashboard />;
       case "leave-approvals":       return user.role === "manager" ? <LeaveApprovals /> : <Dashboard />;
       case "admin-panel":           return user.role === "admin" ? <AdminPanel /> : <Dashboard />;
       default:                      return <Dashboard />;

@@ -1,48 +1,51 @@
 const BASE_URL = import.meta.env.VITE_API_URL ?? "http://localhost:5000";
 
-export const apiFetch = async (
+export const apiFetch = async <T,>(
   path: string,
   token: string,
   options: RequestInit = {}
-): Promise<any> => {
-  const url = `${BASE_URL}${path}`;
+): Promise<T> => {
+  const isFormData = options.body instanceof FormData;
 
-  console.log("API CALL:", url);
+  const headers: HeadersInit = {
+    Authorization: `Bearer ${token}`,
+  };
+
+  if (!isFormData) {
+    headers["Content-Type"] = "application/json";
+  }
+
+  const url = `${BASE_URL}${path}`;
 
   try {
     const res = await fetch(url, {
       ...options,
       headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-        ...(options.headers ?? {}),
+        ...headers,
+        ...(options.headers || {}),
       },
     });
 
-    console.log("RESPONSE STATUS:", res.status);
-
-    // Handle empty response safely
-    let data;
-    try {
-      data = await res.json();
-    } catch {
-      data = null;
-    }
-
     if (!res.ok) {
-      console.error("API ERROR RESPONSE:", data);
-      throw new Error(data?.error ?? "Something went wrong");
+      let errMessage = "Something went wrong";
+      try {
+        const errorData = await res.json();
+        errMessage = errorData.error || errMessage;
+      } catch {
+        // use default
+      }
+      throw new Error(errMessage);
     }
 
-    return data;
-  } catch (err: any) {
-    // 🚨 This will catch your current error
-    console.error("FETCH FAILED:", err.message);
+    if (res.status === 204) {
+      return {} as T;
+    }
 
-    throw new Error(
-      err.message === "Failed to fetch"
-        ? "Cannot reach backend. Check API URL or server."
-        : err.message
-    );
+    return await res.json() as T;
+  } catch (err: unknown) {
+    if (err instanceof Error) {
+      throw err;
+    }
+    throw new Error("Something went wrong");
   }
 };

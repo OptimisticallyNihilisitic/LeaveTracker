@@ -3,7 +3,7 @@ import { useAuth } from "../context/AuthContext";
 import {
   getPolicies, upsertPolicy,
   getHolidays, addHoliday, deleteHoliday,
-  createUser, deleteUser, assignManager, getAllUsers,
+  createUser, deleteUser, assignManager, getAllUsers, updateUser,
 } from "../api/admin";
 
 type Tab = "users" | "hierarchy" | "policy" | "holidays";
@@ -45,6 +45,7 @@ export default function AdminPanel() {
 
   // ── Hierarchy ──────────────────────────────────────────
   const [hierarchyChanges, setHierarchyChanges] = useState<Record<string, string | null>>({});
+  const [roleChanges, setRoleChanges] = useState<Record<string, string>>({});
   const [savingHierarchy, setSavingHierarchy] = useState(false);
 
   // ── Policy ─────────────────────────────────────────────
@@ -57,7 +58,7 @@ export default function AdminPanel() {
 
   // ── Holidays ───────────────────────────────────────────
   const [holidays, setHolidays] = useState<any[]>([]);
-  const [holidayForm, setHolidayForm] = useState({ policy_id: "", name: "", date: "" });
+  const [holidayForm, setHolidayForm] = useState({ policy_id: "", name: "", date: "", is_floater: false });
   const [holidayLoading, setHolidayLoading] = useState(false);
   const [deletingHolidayId, setDeletingHolidayId] = useState<string | null>(null);
 
@@ -148,13 +149,16 @@ export default function AdminPanel() {
   const handleSaveHierarchy = async () => {
     setSavingHierarchy(true);
     try {
-      await Promise.all(
-        Object.entries(hierarchyChanges).map(([userId, managerId]) =>
-          assignManager(token!, userId, managerId)
-        )
+      const managerPromises = Object.entries(hierarchyChanges).map(([userId, managerId]) =>
+        assignManager(token!, userId, managerId)
       );
+      const rolePromises = Object.entries(roleChanges).map(([userId, role]) =>
+        updateUser(token!, userId, { role })
+      );
+      await Promise.all([...managerPromises, ...rolePromises]);
       setHierarchyChanges({});
-      notify("Hierarchy saved successfully.");
+      setRoleChanges({});
+      notify("Hierarchy and roles updated successfully.");
       fetchUsers();
     } catch (err: any) {
       notify(err.message, true);
@@ -190,7 +194,7 @@ export default function AdminPanel() {
     setHolidayLoading(true);
     try {
       await addHoliday(token!, holidayForm);
-      setHolidayForm((f) => ({ ...f, name: "", date: "" }));
+      setHolidayForm((f) => ({ ...f, name: "", date: "", is_floater: false }));
       notify("Holiday added.");
       fetchPoliciesAndHolidays();
     } catch (err: any) {
@@ -367,12 +371,12 @@ export default function AdminPanel() {
               <h3 className="font-bold text-slate-800">Reporting Hierarchy</h3>
               <p className="text-sm text-slate-500 mt-0.5">Set who each user reports to. Changes are batched — click Save when done.</p>
             </div>
-            {Object.keys(hierarchyChanges).length > 0 && (
+            {Object.keys(hierarchyChanges).length > 0 || Object.keys(roleChanges).length > 0 ? (
               <button onClick={handleSaveHierarchy} disabled={savingHierarchy}
                 className="bg-emerald-500 hover:bg-emerald-600 disabled:opacity-60 text-white font-semibold px-5 py-2.5 rounded-xl transition-colors shadow-sm text-sm">
-                {savingHierarchy ? "Saving..." : `Save ${Object.keys(hierarchyChanges).length} change${Object.keys(hierarchyChanges).length > 1 ? "s" : ""}`}
+                {savingHierarchy ? "Saving..." : `Save changes`}
               </button>
-            )}
+            ) : null}
           </div>
 
           <div className="overflow-x-auto rounded-xl border border-slate-200">
@@ -391,7 +395,10 @@ export default function AdminPanel() {
                   const currentManagerId = hierarchyChanges.hasOwnProperty(u.id)
                     ? hierarchyChanges[u.id]
                     : u.manager_id;
-                  const isDirty = hierarchyChanges.hasOwnProperty(u.id);
+                  const currentRole = roleChanges.hasOwnProperty(u.id)
+                    ? roleChanges[u.id]
+                    : u.role;
+                  const isDirty = hierarchyChanges.hasOwnProperty(u.id) || roleChanges.hasOwnProperty(u.id);
 
                   return (
                     <tr key={u.id} className={`transition-colors ${isDirty ? "bg-amber-50" : "hover:bg-slate-50"}`}>
@@ -400,9 +407,25 @@ export default function AdminPanel() {
                         <p className="text-xs text-slate-400 font-mono">{u.employee_id}</p>
                       </td>
                       <td className="px-5 py-4">
-                        <span className={`text-xs font-semibold px-2.5 py-1 rounded-full capitalize ${ROLE_STYLES[u.role]}`}>
-                          {u.role}
-                        </span>
+                        <select
+                          value={currentRole}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            if (val === u.role) {
+                              setRoleChanges((prev) => {
+                                const next = { ...prev };
+                                delete next[u.id];
+                                return next;
+                              });
+                            } else {
+                              setRoleChanges((prev) => ({ ...prev, [u.id]: val }));
+                            }
+                          }}
+                          className={`px-3 py-1 border border-slate-200 rounded-lg text-xs font-bold uppercase transition-colors cursor-pointer appearance-none ${ROLE_STYLES[currentRole]}`}>
+                          <option value="employee" className="bg-white text-slate-800">EMPLOYEE</option>
+                          <option value="manager" className="bg-white text-slate-800">MANAGER</option>
+                          <option value="admin" className="bg-white text-slate-800">ADMIN</option>
+                        </select>
                       </td>
                       <td className="px-5 py-4 text-slate-500">{getManagerName(u.manager_id)}</td>
                       <td className="px-5 py-4">
@@ -508,33 +531,42 @@ export default function AdminPanel() {
             <p className="text-sm text-slate-500 mt-0.5">Add or remove holidays for any policy year.</p>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-            <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-1.5">Policy Year</label>
-              <select value={holidayForm.policy_id}
-                onChange={(e) => setHolidayForm((f) => ({ ...f, policy_id: e.target.value }))}
-                className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-slate-50 appearance-none">
-                <option value="">Select year</option>
-                {policies.map((p) => (
-                  <option key={p.id} value={p.id}>{p.year}</option>
-                ))}
-              </select>
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-1.5">Policy Year</label>
+                <select value={holidayForm.policy_id}
+                  onChange={(e) => setHolidayForm((f) => ({ ...f, policy_id: e.target.value }))}
+                  className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-slate-50 appearance-none">
+                  <option value="">Select year</option>
+                  {policies.map((p) => (
+                    <option key={p.id} value={p.id}>{p.year}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-1.5">Holiday Name</label>
+                <input type="text" value={holidayForm.name} placeholder="e.g. Pongal"
+                  onChange={(e) => setHolidayForm((f) => ({ ...f, name: e.target.value }))}
+                  className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-slate-50" />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-1.5">Date</label>
+                <input type="date" value={holidayForm.date}
+                  onChange={(e) => setHolidayForm((f) => ({ ...f, date: e.target.value }))}
+                  className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-slate-50" />
+              </div>
             </div>
-            <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-1.5">Holiday Name</label>
-              <input type="text" value={holidayForm.name} placeholder="e.g. Pongal"
-                onChange={(e) => setHolidayForm((f) => ({ ...f, name: e.target.value }))}
-                className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-slate-50" />
-            </div>
-            <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-1.5">Date</label>
-              <input type="date" value={holidayForm.date}
-                onChange={(e) => setHolidayForm((f) => ({ ...f, date: e.target.value }))}
-                className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-slate-50" />
-            </div>
-            <div className="flex items-end">
+            
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pt-1">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" checked={holidayForm.is_floater}
+                  onChange={(e) => setHolidayForm((f) => ({ ...f, is_floater: e.target.checked }))}
+                  className="w-4 h-4 text-emerald-500 rounded border-slate-300 focus:ring-emerald-400" />
+                <span className="text-sm font-semibold text-slate-700">This is a Restricted / Floater Holiday</span>
+              </label>
               <button onClick={handleAddHoliday} disabled={holidayLoading}
-                className="w-full bg-emerald-500 hover:bg-emerald-600 disabled:opacity-60 text-white font-semibold py-3 rounded-xl transition-colors shadow-sm">
+                className="w-full sm:w-auto px-8 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-60 text-white font-semibold py-2.5 rounded-xl transition-colors shadow-sm">
                 {holidayLoading ? "Adding..." : "Add Holiday"}
               </button>
             </div>
@@ -555,7 +587,14 @@ export default function AdminPanel() {
                 ) : holidays.map((h) => (
                   <tr key={h.id} className="hover:bg-slate-50 transition-colors">
                     <td className="px-5 py-3.5 text-slate-500">{h.policies?.year ?? "—"}</td>
-                    <td className="px-5 py-3.5 font-semibold text-slate-700">{h.name}</td>
+                    <td className="px-5 py-3.5 font-semibold text-slate-700">
+                      {h.name}
+                      {h.is_floater && (
+                        <span className="ml-2 inline-flex items-center text-[10px] font-bold uppercase tracking-widest bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full relative top-[-1px]">
+                          Floater
+                        </span>
+                      )}
+                    </td>
                     <td className="px-5 py-3.5 text-slate-600">{formatDate(h.date)}</td>
                     <td className="px-5 py-3.5">
                       <button onClick={() => handleDeleteHoliday(h.id)} disabled={deletingHolidayId === h.id}

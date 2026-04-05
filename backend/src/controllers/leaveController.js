@@ -10,7 +10,6 @@ export const applyLeave = async (req, res) => {
 
     const data = await leaveService.applyLeave({
       userId: req.user.id,
-      managerId: req.user.manager_id,
       leave_type,
       start_date,
       end_date,

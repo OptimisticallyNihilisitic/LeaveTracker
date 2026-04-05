@@ -1,6 +1,9 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "../context/AuthContext";
-import { applyLeave } from "../api/leave";
+import { applyLeave, getMyLeaves } from "../api/leave";
+import { getCurrentPolicy } from "../api/user";
+import { getHolidays } from "../api/admin";
+import type { LeaveRequest, Holiday } from "../types";
 
 export default function ApplyLeave() {
   const { user, token } = useAuth();
@@ -9,26 +12,124 @@ export default function ApplyLeave() {
   const [leaveType, setLeaveType] = useState("");
   const [reason, setReason] = useState("");
   const [loading, setLoading] = useState(false);
+  
+  const [policy, setPolicy] = useState<any>(null);
+  const [leaves, setLeaves] = useState<LeaveRequest[]>([]);
+  const [holidays, setHolidays] = useState<Holiday[]>([]);
+  
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
 
-  const numDays = from && to
-    ? Math.max(0, Math.ceil((new Date(to).getTime() - new Date(from).getTime()) / (1000 * 60 * 60 * 24)) + 1)
-    : 0;
+  useEffect(() => {
+    if (!token) return;
+    Promise.all([
+      getCurrentPolicy(token),
+      getMyLeaves(token),
+      getHolidays(token),
+    ])
+      .then(([policyData, leavesData, holidaysData]) => {
+        setPolicy(policyData);
+        setLeaves(leavesData as LeaveRequest[]);
+        setHolidays(holidaysData as Holiday[]);
+      })
+      .catch(console.error);
+  }, [token]);
+
+  // Calculate leaves left dynamically
+  const consumedCasual = leaves
+    .filter((l) => l.status === "approved" && l.leave_type === "casual")
+    .reduce((acc, l) => acc + (l.days ?? 0), 0);
+  const consumedSick = leaves
+    .filter((l) => l.status === "approved" && l.leave_type === "sick")
+    .reduce((acc, l) => acc + (l.days ?? 0), 0);
+  const consumedFloater = leaves
+    .filter((l) => l.status === "approved" && l.leave_type === "floater")
+    .reduce((acc, l) => acc + (l.days ?? 0), 0);
+
+  const casualLeft = Math.max(0, (user?.casual_leaves ?? 0) - consumedCasual);
+  const sickLeft = Math.max(0, (user?.sick_leaves ?? 0) - consumedSick);
+  const floaterLeft = Math.max(0, (user?.floater_leaves ?? 0) - consumedFloater);
 
   const leaveBalances = [
-    { label: "Casual Leave", value: user?.casual_leaves ?? 0, max: 12, color: "bg-emerald-500" },
-    { label: "Sick Leave", value: user?.sick_leaves ?? 0, max: 12, color: "bg-rose-500" },
-    { label: "Floater Leave", value: user?.floater_leaves ?? 0, max: 12, color: "bg-amber-500" },
+    { label: "Casual Leave",  value: casualLeft,  max: user?.casual_leaves ?? 0, color: "bg-emerald-500" },
+    { label: "Sick Leave",    value: sickLeft,    max: user?.sick_leaves ?? 0,   color: "bg-rose-500" },
+    { label: "Floater Leave", value: floaterLeft, max: user?.floater_leaves ?? 0, color: "bg-amber-500" },
   ];
+
+  // Calculate working days & validate floaters
+  let numDays = 0;
+  let invalidFloaterFound = false;
+  let hasOverlap = false;
+
+  if (from && to) {
+    const start = new Date(from);
+    const end = new Date(to);
+
+    // Filter active leaves for overlap checking
+    const activeLeaves = leaves.filter((l) => l.status === "approved" || l.status === "pending");
+
+    if (start <= end) {
+      // Check for overlapping existing active leaves
+      hasOverlap = activeLeaves.some(l => {
+        const ls = new Date(l.start_date);
+        const le = new Date(l.end_date);
+        return start <= le && end >= ls;
+      });
+
+      for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+        const dayOfWeek = d.getDay();
+        
+        // Skip weekends
+        if (dayOfWeek === 0 || dayOfWeek === 6) continue;
+
+        // Skip mandatory holidays
+        const isMandatory = holidays.some(
+          (h: any) => !h.is_floater && new Date(h.date).toDateString() === d.toDateString()
+        );
+        if (isMandatory) continue;
+
+        // Valid leave day
+        numDays++;
+
+        // Floater validation
+        if (leaveType === "floater") {
+          const isFloater = holidays.some(
+            (h: any) => h.is_floater && new Date(h.date).toDateString() === d.toDateString()
+          );
+          if (!isFloater) invalidFloaterFound = true;
+        }
+      }
+    }
+  }
 
   const handleSubmit = async () => {
     if (!from || !to || !leaveType) {
-      setError("Please fill in all required fields.");
-      return;
+      setError("Please fill in all required fields."); return;
     }
-    setError("");
-    setLoading(true);
+    if (new Date(from) > new Date(to)) {
+      setError("Start date cannot be after end date."); return;
+    }
+    if (hasOverlap) {
+      setError("You already have an active leave request during the selected dates."); return;
+    }
+    if (numDays === 0) {
+      setError("Selected range contains 0 working days."); return;
+    }
+    if (leaveType === "floater" && invalidFloaterFound) {
+      setError("One or more selected days are not designated floater holidays."); return;
+    }
+
+    if (leaveType === "casual" && numDays > casualLeft) {
+      setError(`Insufficient balance. You only have ${casualLeft} Casual Leave(s) left.`); return;
+    }
+    if (leaveType === "sick" && numDays > sickLeft) {
+      setError(`Insufficient balance. You only have ${sickLeft} Sick Leave(s) left.`); return;
+    }
+    if (leaveType === "floater" && numDays > floaterLeft) {
+      setError(`Insufficient balance. You only have ${floaterLeft} Floater Leave(s) left.`); return;
+    }
+
+    setError(""); setLoading(true);
     try {
       await applyLeave(token!, {
         leave_type: leaveType,
@@ -39,6 +140,10 @@ export default function ApplyLeave() {
       });
       setSuccess(true);
       setFrom(""); setTo(""); setLeaveType(""); setReason("");
+      
+      // Optionally refresh leaves data to update balances immediately
+      const newLeaves = await getMyLeaves(token!);
+      setLeaves(newLeaves as LeaveRequest[]);
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -53,7 +158,9 @@ export default function ApplyLeave() {
 
         {success && (
           <div className="mb-5 px-4 py-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-700 text-sm font-medium">
-            Leave request submitted successfully!
+            {user?.role === "admin" || (user?.role === "manager" && !user?.manager_id)
+              ? "Leave request auto-approved successfully and recorded to your balance!"
+              : "Leave request submitted successfully! Your manager will be notified."}
           </div>
         )}
         {error && (
@@ -66,20 +173,23 @@ export default function ApplyLeave() {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-semibold text-slate-700 mb-1.5">From</label>
-              <input type="date" value={from} onChange={(e) => { setFrom(e.target.value); setSuccess(false); }}
+              <input type="date" value={from}
+                onChange={(e) => { setFrom(e.target.value); setSuccess(false); }}
                 className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-transparent transition-all bg-slate-50" />
             </div>
             <div>
               <label className="block text-sm font-semibold text-slate-700 mb-1.5">To</label>
-              <input type="date" value={to} onChange={(e) => { setTo(e.target.value); setSuccess(false); }}
+              <input type="date" value={to}
+                onChange={(e) => { setTo(e.target.value); setSuccess(false); }}
                 className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-transparent transition-all bg-slate-50" />
             </div>
           </div>
 
           <div>
             <label className="block text-sm font-semibold text-slate-700 mb-1.5">No. of days</label>
-            <div className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm text-slate-500 bg-slate-50">
-              {numDays > 0 ? `${numDays} day${numDays > 1 ? "s" : ""}` : "0"}
+            <div className={`w-full px-4 py-3 border rounded-xl text-sm ${invalidFloaterFound && leaveType === 'floater' ? 'border-amber-300 bg-amber-50 text-amber-700' : 'border-slate-200 bg-slate-50 text-slate-500'}`}>
+              {numDays > 0 ? `${numDays} working day${numDays > 1 ? "s" : ""}` : "0 working days"}
+              {invalidFloaterFound && leaveType === 'floater' && " (Invalid floater dates selected)"}
             </div>
           </div>
 
@@ -91,6 +201,7 @@ export default function ApplyLeave() {
               <option value="casual">Casual Leave</option>
               <option value="sick">Sick Leave</option>
               <option value="floater">Floater Leave</option>
+              <option value="loss_of_pay">Loss of Pay (Unpaid Leave)</option>
             </select>
           </div>
 
@@ -114,6 +225,7 @@ export default function ApplyLeave() {
         </div>
       </div>
 
+      {/* Leave Balance Sidebar */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
         <h3 className="font-bold text-slate-800 mb-5">Leave Balance Breakdown</h3>
         <div className="space-y-4">
@@ -124,11 +236,15 @@ export default function ApplyLeave() {
                 <span className="text-xs font-bold text-slate-500">{leave.value}/{leave.max}</span>
               </div>
               <div className="w-full bg-slate-100 rounded-full h-2.5">
-                <div className={`${leave.color} h-2.5 rounded-full`} style={{ width: `${(leave.value / leave.max) * 100}%` }} />
+                <div className={`${leave.color} h-2.5 rounded-full transition-all`}
+                  style={{ width: leave.max > 0 ? `${(leave.value / leave.max) * 100}%` : "0%" }} />
               </div>
             </div>
           ))}
         </div>
+        {!policy && (
+          <p className="text-xs text-slate-400 mt-4">No policy configured for this year. Contact your admin.</p>
+        )}
       </div>
     </div>
   );

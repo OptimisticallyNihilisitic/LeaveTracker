@@ -62,11 +62,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     return () => listener.subscription.unsubscribe();
   }, []);
 
+
   const login = async (email: string, password: string) => {
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) throw new Error(error.message);
-    await loadProfile(data.session.access_token);
-  };
+  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+  if (error) throw new Error(error.message);
+
+  await loadProfile(data.session.access_token);
+};
 
   const logout = async () => {
     await supabase.auth.signOut();

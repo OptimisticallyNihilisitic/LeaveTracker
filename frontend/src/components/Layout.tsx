@@ -8,20 +8,17 @@ type NavItem = SectionHeader | NavLink;
 const employeeNav: NavItem[] = [
   { kind: "section", label: "Overview" },
   { kind: "link", label: "Dashboard", page: "dashboard" },
-  { kind: "link", label: "Attendance", page: "attendance" },
   { kind: "section", label: "Leave Management" },
   { kind: "link", label: "Apply for Leave", page: "apply-leave" },
   { kind: "link", label: "Leaves", page: "leaves" },
   { kind: "link", label: "Holiday Calendar", page: "holiday-calendar" },
-  { kind: "section", label: "Regularization" },
-  { kind: "link", label: "Regularize Attendance", page: "regularize-attendance" },
 ];
 
 const managerNav: NavItem[] = [
   { kind: "section", label: "Overview" },
   { kind: "link", label: "Dashboard", page: "dashboard" },
-  { kind: "link", label: "Attendance", page: "attendance" },
   { kind: "section", label: "Leave Management" },
+  { kind: "link", label: "Apply for Leave", page: "apply-leave" },
   { kind: "link", label: "Leaves", page: "leaves" },
   { kind: "link", label: "Holiday Calendar", page: "holiday-calendar" },
   { kind: "section", label: "Manager" },

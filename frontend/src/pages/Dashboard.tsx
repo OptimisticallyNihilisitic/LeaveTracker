@@ -1,12 +1,7 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { getMyLeaves } from "../api/leave";
-
-const LEAVE_COLORS: Record<string, string> = {
-  casual: "bg-emerald-500",
-  sick: "bg-rose-500",
-  floater: "bg-amber-500",
-};
+import type { LeaveRequest } from "../types";
 
 const StatCard = ({ title, value, subtitle, highlight }: {
   title: string; value: string | number; subtitle: string; highlight?: boolean;
@@ -20,13 +15,13 @@ const StatCard = ({ title, value, subtitle, highlight }: {
 
 export default function Dashboard() {
   const { user, token } = useAuth();
-  const [leaves, setLeaves] = useState<any[]>([]);
+  const [leaves, setLeaves] = useState<LeaveRequest[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!token) return;
     getMyLeaves(token)
-      .then(setLeaves)
+      .then((data) => setLeaves(data as LeaveRequest[]))
       .catch(console.error)
       .finally(() => setLoading(false));
   }, [token]);
@@ -35,42 +30,89 @@ export default function Dashboard() {
   const takenThisMonth = leaves.filter((l) => {
     const d = new Date(l.start_date);
     const now = new Date();
-    return l.status === "approved" && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+    return l.status === "approved"
+      && d.getMonth() === now.getMonth()
+      && d.getFullYear() === now.getFullYear();
   });
 
-  const totalBalance = (user?.casual_leaves ?? 0) + (user?.sick_leaves ?? 0) + (user?.floater_leaves ?? 0);
+  const takenThisMonthDays = takenThisMonth.reduce((acc, l) => acc + (l.days ?? 0), 0);
+
+  const consumedCasual = leaves
+    .filter((l) => l.status === "approved" && l.leave_type === "casual")
+    .reduce((acc, l) => acc + (l.days ?? 0), 0);
+
+  const consumedSick = leaves
+    .filter((l) => l.status === "approved" && l.leave_type === "sick")
+    .reduce((acc, l) => acc + (l.days ?? 0), 0);
+
+  const consumedFloater = leaves
+    .filter((l) => l.status === "approved" && l.leave_type === "floater")
+    .reduce((acc, l) => acc + (l.days ?? 0), 0);
+
+  const totalMax = (user?.casual_leaves ?? 0) + (user?.sick_leaves ?? 0) + (user?.floater_leaves ?? 0);
+  const totalConsumed = consumedCasual + consumedSick + consumedFloater;
+  const totalBalance = totalMax - totalConsumed;
 
   const leaveBalances = [
-    { label: "Casual Leave", value: user?.casual_leaves ?? 0, max: 12, color: "bg-emerald-500" },
-    { label: "Sick Leave", value: user?.sick_leaves ?? 0, max: 12, color: "bg-rose-500" },
-    { label: "Floater Leave", value: user?.floater_leaves ?? 0, max: 12, color: "bg-amber-500" },
+    {
+      label: "Casual Leave",
+      value: Math.max(0, (user?.casual_leaves ?? 0) - consumedCasual),
+      max: user?.casual_leaves ?? 0,
+      color: "bg-emerald-500",
+    },
+    {
+      label: "Sick Leave",
+      value: Math.max(0, (user?.sick_leaves ?? 0) - consumedSick),
+      max: user?.sick_leaves ?? 0,
+      color: "bg-rose-500",
+    },
+    {
+      label: "Floater Leave",
+      value: Math.max(0, (user?.floater_leaves ?? 0) - consumedFloater),
+      max: user?.floater_leaves ?? 0,
+      color: "bg-amber-500",
+    },
   ];
 
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard title="Leaves taken" value={takenThisMonth.length} subtitle="this month" />
+        <StatCard title="Leaves taken" value={takenThisMonthDays} subtitle="this month" />
         <StatCard title="Leave balance" value={totalBalance} subtitle="total remaining" />
-        <StatCard title="Pending requests" value={pendingLeaves.length} subtitle="awaiting approval" highlight={pendingLeaves.length > 0} />
+        <StatCard
+          title="Pending requests"
+          value={pendingLeaves.length}
+          subtitle="awaiting approval"
+          highlight={pendingLeaves.length > 0}
+        />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Leave Balance Breakdown */}
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
           <h3 className="font-bold text-slate-800 mb-5">Leave Balance Breakdown</h3>
-          <div className="space-y-4">
-            {leaveBalances.map((leave) => (
-              <div key={leave.label}>
-                <div className="flex justify-between items-center mb-1.5">
-                  <span className="text-sm font-medium text-slate-600">{leave.label}</span>
-                  <span className="text-xs font-semibold text-slate-500">{leave.value}/{leave.max}</span>
+          {loading ? (
+            <p className="text-sm text-slate-400">Loading...</p>
+          ) : (
+            <div className="space-y-4">
+              {leaveBalances.map((leave) => (
+                <div key={leave.label}>
+                  <div className="flex justify-between items-center mb-1.5">
+                    <span className="text-sm font-medium text-slate-600">{leave.label}</span>
+                    <span className="text-xs font-semibold text-slate-500">
+                      {leave.value}/{leave.max}
+                    </span>
+                  </div>
+                  <div className="w-full bg-slate-100 rounded-full h-2.5">
+                    <div
+                      className={`${leave.color} h-2.5 rounded-full transition-all`}
+                      style={{ width: leave.max > 0 ? `${(leave.value / leave.max) * 100}%` : "0%" }}
+                    />
+                  </div>
                 </div>
-                <div className="w-full bg-slate-100 rounded-full h-2.5">
-                  <div className={`${leave.color} h-2.5 rounded-full transition-all`} style={{ width: `${(leave.value / leave.max) * 100}%` }} />
-                </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Pending Approvals */}

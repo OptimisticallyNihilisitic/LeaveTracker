@@ -5,27 +5,27 @@ import * as adminController from "../controllers/adminController.js";
 
 const router = express.Router();
 
-// All admin routes require authentication + admin role
-router.use(authenticate, authorizeRoles("admin"));
+const adminOnly = [authenticate, authorizeRoles("admin")];
+const anyRole   = [authenticate];
 
-// Users
-router.get("/users", adminController.getAllUsers);
-router.post("/users", adminController.createUserWithAuth);     
-router.patch("/users/:id", adminController.updateUser);
-router.delete("/users/:id", adminController.deleteUserWithAuth);
-router.patch("/users/:id/manager", adminController.assignManager);
+// ── Users (admin only) ─────────────────────────────────
+router.get("/users",             ...adminOnly, adminController.getAllUsers);
+router.post("/users",            ...adminOnly, adminController.createUserWithAuth);
+router.patch("/users/:id",       ...adminOnly, adminController.updateUser);
+router.delete("/users/:id",      ...adminOnly, adminController.deleteUserWithAuth);
+router.patch("/users/:id/manager", ...adminOnly, adminController.assignManager);
 
-// Policies
-router.get("/policies", adminController.getPolicies);
-router.post("/policies", adminController.upsertPolicy);
+// ── Policies (read: all | write: admin) ────────────────
+router.get("/policies",  ...anyRole,   adminController.getPolicies);
+router.post("/policies", ...adminOnly, adminController.upsertPolicy);
 
-// Holidays
-router.get("/holidays", adminController.getHolidays);
-router.post("/holidays", adminController.addHoliday);
-router.delete("/holidays/:id", adminController.deleteHoliday);
+// ── Holidays (read: all | write: admin) ────────────────
+router.get("/holidays",        ...anyRole,   adminController.getHolidays);
+router.post("/holidays",       ...adminOnly, adminController.addHoliday);
+router.delete("/holidays/:id", ...adminOnly, adminController.deleteHoliday);
 
-// Leave & Attendance (read-only for admin)
-router.get("/leave", adminController.getAllLeaves);
-router.get("/attendance", adminController.getAllAttendance);
+// ── Leave & Attendance (admin read-only) ───────────────
+router.get("/leave",      ...adminOnly, adminController.getAllLeaves);
+router.get("/attendance", ...adminOnly, adminController.getAllAttendance);
 
 export default router;

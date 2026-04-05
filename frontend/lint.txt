@@ -1,0 +1,124 @@
+
+> leave-manager@0.0.0 lint
+> eslint .
+
+
+C:\Users\RevathiVinayakaMurth\OneDrive - Lumel Technologies Inc\Desktop\leave-tool\frontend\src\App.tsx
+  34:9  error  'defaultPage' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\RevathiVinayakaMurth\OneDrive - Lumel Technologies Inc\Desktop\leave-tool\frontend\src\api\apiFetch.ts
+   7:12  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  38:17  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\RevathiVinayakaMurth\OneDrive - Lumel Technologies Inc\Desktop\leave-tool\frontend\src\context\AuthContext.tsx
+  86:14  error  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+C:\Users\RevathiVinayakaMurth\OneDrive - Lumel Technologies Inc\Desktop\leave-tool\frontend\src\pages\AdminPanel.tsx
+   51:44  error    Unexpected any. Specify a different type                                                                                                        @typescript-eslint/no-explicit-any
+   59:44  error    Unexpected any. Specify a different type                                                                                                        @typescript-eslint/no-explicit-any
+   71:19  error    Unexpected any. Specify a different type                                                                                                        @typescript-eslint/no-explicit-any
+   94:19  error    Unexpected any. Specify a different type                                                                                                        @typescript-eslint/no-explicit-any
+  102:6   warning  React Hook useEffect has missing dependencies: 'fetchPoliciesAndHolidays' and 'fetchUsers'. Either include them or remove the dependency array  react-hooks/exhaustive-deps
+  126:19  error    Unexpected any. Specify a different type                                                                                                        @typescript-eslint/no-explicit-any
+  140:19  error    Unexpected any. Specify a different type                                                                                                        @typescript-eslint/no-explicit-any
+  159:19  error    Unexpected any. Specify a different type                                                                                                        @typescript-eslint/no-explicit-any
+  178:19  error    Unexpected any. Specify a different type                                                                                                        @typescript-eslint/no-explicit-any
+  196:19  error    Unexpected any. Specify a different type                                                                                                        @typescript-eslint/no-explicit-any
+  209:19  error    Unexpected any. Specify a different type                                                                                                        @typescript-eslint/no-explicit-any
+  294:90  error    Unexpected any. Specify a different type                                                                                                        @typescript-eslint/no-explicit-any
+  391:61  error    Do not access Object.prototype method 'hasOwnProperty' from target object                                                                       no-prototype-builtins
+  394:52  error    Do not access Object.prototype method 'hasOwnProperty' from target object                                                                       no-prototype-builtins
+
+C:\Users\RevathiVinayakaMurth\OneDrive - Lumel Technologies Inc\Desktop\leave-tool\frontend\src\pages\ApplyLeave.tsx
+  13:40  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  47:19  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\RevathiVinayakaMurth\OneDrive - Lumel Technologies Inc\Desktop\leave-tool\frontend\src\pages\Attendance.tsx
+  14:36  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\RevathiVinayakaMurth\OneDrive - Lumel Technologies Inc\Desktop\leave-tool\frontend\src\pages\Dashboard.tsx
+  18:40  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  19:40  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\RevathiVinayakaMurth\OneDrive - Lumel Technologies Inc\Desktop\leave-tool\frontend\src\pages\HolidayCalendar.tsx
+   7:44  error  Unexpected any. Specify a different type                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       @typescript-eslint/no-explicit-any
+  22:50  error  Unexpected any. Specify a different type                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       @typescript-eslint/no-explicit-any
+  54:10  error  Error: Cannot create components during render
+
+Components created during render will reset their state each time they are created. Declare components outside of render.
+
+C:\Users\RevathiVinayakaMurth\OneDrive - Lumel Technologies Inc\Desktop\leave-tool\frontend\src\pages\HolidayCalendar.tsx:54:10
+  52 |           <p className="text-xs text-emerald-600 mt-0.5">National & Festival holidays</p>
+  53 |         </div>
+> 54 |         <HolidayTable data={mandatory} color="emerald" />
+     |          ^^^^^^^^^^^^ This component is created during render
+  55 |       </div>
+  56 |
+  57 |       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+
+C:\Users\RevathiVinayakaMurth\OneDrive - Lumel Technologies Inc\Desktop\leave-tool\frontend\src\pages\HolidayCalendar.tsx:22:24
+  20 |   const floater = holidays.filter((h) => h.is_floater);
+  21 |
+> 22 |   const HolidayTable = ({ data, color }: { data: any[]; color: "emerald" | "blue" }) => (
+     |                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 23 |     <div className="overflow-x-auto">
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 24 |       <table className="w-full text-sm">
+     …
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 44 |     </div>
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 45 |   );
+     | ^^^^ The component is created during render here
+  46 |
+  47 |   return (
+  48 |     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">  react-hooks/static-components
+  62:10  error  Error: Cannot create components during render
+
+Components created during render will reset their state each time they are created. Declare components outside of render.
+
+C:\Users\RevathiVinayakaMurth\OneDrive - Lumel Technologies Inc\Desktop\leave-tool\frontend\src\pages\HolidayCalendar.tsx:62:10
+  60 |           <p className="text-xs text-blue-600 mt-0.5">Choose any from the list below</p>
+  61 |         </div>
+> 62 |         <HolidayTable data={floater} color="blue" />
+     |          ^^^^^^^^^^^^ This component is created during render
+  63 |       </div>
+  64 |     </div>
+  65 |   );
+
+C:\Users\RevathiVinayakaMurth\OneDrive - Lumel Technologies Inc\Desktop\leave-tool\frontend\src\pages\HolidayCalendar.tsx:22:24
+  20 |   const floater = holidays.filter((h) => h.is_floater);
+  21 |
+> 22 |   const HolidayTable = ({ data, color }: { data: any[]; color: "emerald" | "blue" }) => (
+     |                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 23 |     <div className="overflow-x-auto">
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 24 |       <table className="w-full text-sm">
+     …
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 44 |     </div>
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 45 |   );
+     | ^^^^ The component is created during render here
+  46 |
+  47 |   return (
+  48 |     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">                                                                                       react-hooks/static-components
+
+C:\Users\RevathiVinayakaMurth\OneDrive - Lumel Technologies Inc\Desktop\leave-tool\frontend\src\pages\LeaveApprovals.tsx
+  23:44  error    Unexpected any. Specify a different type                                                                        @typescript-eslint/no-explicit-any
+  36:39  warning  React Hook useEffect has a missing dependency: 'fetchLeaves'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+  46:19  error    Unexpected any. Specify a different type                                                                        @typescript-eslint/no-explicit-any
+
+C:\Users\RevathiVinayakaMurth\OneDrive - Lumel Technologies Inc\Desktop\leave-tool\frontend\src\pages\Leaves.tsx
+  20:40  error    Unexpected any. Specify a different type                                                                        @typescript-eslint/no-explicit-any
+  29:39  warning  React Hook useEffect has a missing dependency: 'fetchLeaves'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+  36:19  error    Unexpected any. Specify a different type                                                                        @typescript-eslint/no-explicit-any
+
+C:\Users\RevathiVinayakaMurth\OneDrive - Lumel Technologies Inc\Desktop\leave-tool\frontend\src\pages\Login.tsx
+  17:19  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\RevathiVinayakaMurth\OneDrive - Lumel Technologies Inc\Desktop\leave-tool\frontend\src\pages\RegularizeAttendance.tsx
+  28:19  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+✖ 35 problems (32 errors, 3 warnings)
+

@@ -87,13 +87,13 @@ export const getHolidays = async (req, res) => {
 
 export const addHoliday = async (req, res) => {
   try {
-    const { policy_id, name, date } = req.body;
+    const { policy_id, name, date, is_floater } = req.body;
 
     if (!policy_id || !name || !date) {
       return res.status(400).json({ error: "policy_id, name and date are required" });
     }
 
-    const data = await adminService.addHoliday({ policy_id, name, date });
+    const data = await adminService.addHoliday({ policy_id, name, date, is_floater });
     res.status(201).json(data);
   } catch (err) {
     res.status(500).json({ error: err.message });
