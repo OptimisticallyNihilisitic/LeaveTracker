@@ -23,7 +23,7 @@ export default function Leaves() {
 
   const fetchLeaves = () => {
     if (!token) return;
-    getMyLeaves(token).then(setLeaves).catch(console.error).finally(() => setLoading(false));
+    getMyLeaves(token).then((res: any) => setLeaves(res)).catch(console.error).finally(() => setLoading(false));
   };
 
   useEffect(() => { fetchLeaves(); }, [token]);

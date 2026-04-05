@@ -17,7 +17,7 @@ export default function Attendance() {
   useEffect(() => {
     if (!token) return;
     getMyAttendance(token)
-      .then(setLogs)
+      .then((res: any) => setLogs(res))
       .catch(console.error)
       .finally(() => setLoading(false));
   }, [token]);

@@ -30,7 +30,7 @@ export default function LeaveApprovals() {
 
   const fetchLeaves = () => {
     if (!token) return;
-    getTeamLeaves(token).then(setRequests).catch(console.error).finally(() => setLoading(false));
+    getTeamLeaves(token).then((res: any) => setRequests(res)).catch(console.error).finally(() => setLoading(false));
   };
 
   useEffect(() => { fetchLeaves(); }, [token]);

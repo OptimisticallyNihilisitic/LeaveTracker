@@ -31,7 +31,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const loadProfile = async (accessToken: string) => {
     try {
       const profile = await getMe(accessToken);
-      setUser(profile);
+      setUser(profile as UserProfile);
       setToken(accessToken);
     } catch {
       setUser(null);
