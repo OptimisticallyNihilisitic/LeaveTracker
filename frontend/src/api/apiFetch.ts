@@ -15,7 +15,9 @@ export const apiFetch = async <T,>(
     headers["Content-Type"] = "application/json";
   }
 
-  const url = `${BASE_URL}${path}`;
+  const safeBase = BASE_URL.replace(/\/$/, "");
+  const safePath = path.startsWith("/") ? path : `/${path}`;
+  const url = `${safeBase}${safePath}`;
 
   try {
     const res = await fetch(url, {
