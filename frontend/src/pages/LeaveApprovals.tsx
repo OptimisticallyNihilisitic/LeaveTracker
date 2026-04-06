@@ -75,7 +75,6 @@ export default function LeaveApprovals() {
         <p className="text-sm text-slate-500 mt-0.5">Review and action leave requests from your team</p>
       </div>
 
-      {/* Summary Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {(["pending", "approved", "rejected"] as LeaveStatus[]).map((s) => (
           <div key={s} onClick={() => setFilter(filter === s ? "all" : s)}
@@ -98,7 +97,7 @@ export default function LeaveApprovals() {
         </div>
       </div>
 
-      {/* Filters + Search */}
+
       <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
         <div className="flex gap-1.5 bg-slate-100 rounded-xl p-1">
           {filterTabs.map((tab) => (
@@ -116,7 +115,7 @@ export default function LeaveApprovals() {
           className="w-full sm:w-64 px-4 py-2 border border-slate-200 rounded-xl text-sm text-slate-700 placeholder-slate-400 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-transparent" />
       </div>
 
-      {/* Table */}
+
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -179,7 +178,7 @@ export default function LeaveApprovals() {
         </div>
       </div>
 
-      {/* Confirm Modal */}
+  
       {confirmModal && (() => {
         const req = requests.find((r) => r.id === confirmModal.id);
         const isApprove = confirmModal.action === "approved";

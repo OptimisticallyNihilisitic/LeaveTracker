@@ -12,7 +12,7 @@ export const getMyAttendance = async (userId) => {
 };
 
 export const requestRegularization = async ({ userId, date, reason }) => {
-  // Find existing attendance log for that date
+ 
   const { data: existing, error: fetchError } = await supabase
     .from("attendance_logs")
     .select("id, regularization_requested")
@@ -39,7 +39,7 @@ export const requestRegularization = async ({ userId, date, reason }) => {
 };
 
 export const getTeamAttendance = async (managerId) => {
-  // Get all users under this manager
+
   const { data: teamUsers, error: usersError } = await supabase
     .from("users")
     .select("id")

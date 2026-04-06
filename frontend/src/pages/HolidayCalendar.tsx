@@ -41,7 +41,7 @@ export default function HolidayCalendar() {
     getHolidays(token).then(setHolidays).catch(console.error).finally(() => setLoading(false));
   }, [token]);
 
-  // Separate mandatory vs floater based on policy if needed — for now split by floater leave type
+  
   const mandatory = holidays.filter((h: any) => !h.is_floater);
   const floater = holidays.filter((h: any) => h.is_floater);
 

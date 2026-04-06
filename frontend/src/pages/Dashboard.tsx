@@ -88,7 +88,7 @@ export default function Dashboard() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Leave Balance Breakdown */}
+
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
           <h3 className="font-bold text-slate-800 mb-5">Leave Balance Breakdown</h3>
           {loading ? (
@@ -115,7 +115,7 @@ export default function Dashboard() {
           )}
         </div>
 
-        {/* Pending Approvals */}
+    
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
           <h3 className="font-bold text-slate-800 mb-5">Pending Approvals</h3>
           {loading ? (

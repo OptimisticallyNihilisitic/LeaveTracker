@@ -47,7 +47,7 @@ export default function Leaves() {
 
   return (
     <div className="space-y-6">
-      {/* Pending */}
+
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
         <h3 className="font-bold text-slate-800 mb-5">Pending Approvals</h3>
         <div className="overflow-x-auto rounded-xl border border-slate-200">
@@ -85,7 +85,7 @@ export default function Leaves() {
         </div>
       </div>
 
-      {/* History */}
+
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
         <h3 className="font-bold text-slate-800 mb-5">Leave History</h3>
         <div className="overflow-x-auto rounded-xl border border-slate-200">

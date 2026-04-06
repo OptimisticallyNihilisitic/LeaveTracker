@@ -1,6 +1,6 @@
 import supabase from "../config/supabaseClient.js";
 
-// ── Users ──────────────────────────────────────────────
+//Users
 
 export const getAllUsers = async () => {
   const { data, error } = await supabase
@@ -45,7 +45,7 @@ export const deleteUser = async (userId) => {
   return { message: "User deleted" };
 };
 
-// ── Policies ───────────────────────────────────────────
+//Policies
 
 export const getPolicies = async () => {
   const { data, error } = await supabase
@@ -76,7 +76,7 @@ export const upsertPolicy = async ({ year, sick_leaves, casual_leaves, floater_l
   return data;
 };
 
-// ── Holidays ───────────────────────────────────────────
+//Holidays
 
 export const addHoliday = async ({ policy_id, name, date, is_floater }) => {
   const { data, error } = await supabase
@@ -109,7 +109,7 @@ export const getHolidays = async () => {
   return data;
 };
 
-// ── Leave (admin view) ─────────────────────────────────
+//Leave (admin view)
 
 export const getAllLeaves = async () => {
   const { data, error } = await supabase
@@ -121,7 +121,7 @@ export const getAllLeaves = async () => {
   return data;
 };
 
-// ── Attendance (admin view) ────────────────────────────
+//Attendance (admin view)
 
 export const getAllAttendance = async () => {
   const { data, error } = await supabase
@@ -133,21 +133,21 @@ export const getAllAttendance = async () => {
   return data;
 };
 
-// ── Auth User Creation ─────────────────────────────────
+//Auth User Creation
 
 export const createUserWithAuth = async ({ email, password, name, employee_id, role, manager_id }) => {
-  // Step 1: Create auth account via Supabase Admin API
+ 
   const { data: authData, error: authError } = await supabase.auth.admin.createUser({
     email,
     password,
-    email_confirm: true, // skip email verification
+    email_confirm: true, 
   });
 
   if (authError) throw new Error(authError.message);
 
   const userId = authData.user.id;
 
-  // Get current policy to initialize balances
+ 
   const currentYear = new Date().getFullYear();
   let defaultPolicy = { sick_leaves: 0, casual_leaves: 0, floater_leaves: 0 };
   const { data: policyData } = await supabase
@@ -159,7 +159,7 @@ export const createUserWithAuth = async ({ email, password, name, employee_id, r
   if (policyData) {
     defaultPolicy = policyData;
   } else {
-    // try fallback
+    
     const { data: fallback } = await supabase
       .from("policies")
       .select("sick_leaves, casual_leaves, floater_leaves")
@@ -169,7 +169,7 @@ export const createUserWithAuth = async ({ email, password, name, employee_id, r
     if (fallback) defaultPolicy = fallback;
   }
 
-  // Step 2: Insert into users table using the same UUID
+ 
   const { data, error } = await supabase
     .from("users")
     .insert({
@@ -187,7 +187,6 @@ export const createUserWithAuth = async ({ email, password, name, employee_id, r
     .single();
 
   if (error) {
-    // Rollback: delete the auth user if profile insert fails
     await supabase.auth.admin.deleteUser(userId);
     throw new Error(error.message);
   }
@@ -196,7 +195,6 @@ export const createUserWithAuth = async ({ email, password, name, employee_id, r
 };
 
 export const deleteUserWithAuth = async (userId) => {
-  // Delete from users table first (cascade will clean up related data)
   const { error: dbError } = await supabase
     .from("users")
     .delete()
@@ -204,7 +202,6 @@ export const deleteUserWithAuth = async (userId) => {
 
   if (dbError) throw new Error(dbError.message);
 
-  // Then delete from Supabase Auth
   const { error: authError } = await supabase.auth.admin.deleteUser(userId);
   if (authError) throw new Error(authError.message);
 
@@ -212,7 +209,7 @@ export const deleteUserWithAuth = async (userId) => {
 };
 
 export const assignManager = async (userId, managerId) => {
-  // Prevent self-assignment
+  
   if (userId === managerId) throw new Error("A user cannot be their own manager");
 
   const { data, error } = await supabase
@@ -224,7 +221,6 @@ export const assignManager = async (userId, managerId) => {
 
   if (error) throw new Error(error.message);
 
-  // Update pending leaves to be routed to the new manager!
   await supabase
     .from("leave_requests")
     .update({ manager_id: managerId ?? null })

@@ -27,11 +27,9 @@ export default function AdminPanel() {
   const { token } = useAuth();
   const [activeTab, setActiveTab] = useState<Tab>("users");
 
-  // ── Shared ─────────────────────────────────────────────
   const [error, setError]   = useState("");
   const [success, setSuccess] = useState("");
 
-  // ── Users ──────────────────────────────────────────────
   const [users, setUsers] = useState<UserRecord[]>([]);
   const [usersLoading, setUsersLoading] = useState(true);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -43,12 +41,10 @@ export default function AdminPanel() {
   const [userFormLoading, setUserFormLoading] = useState(false);
   const [showUserForm, setShowUserForm] = useState(false);
 
-  // ── Hierarchy ──────────────────────────────────────────
   const [hierarchyChanges, setHierarchyChanges] = useState<Record<string, string | null>>({});
   const [roleChanges, setRoleChanges] = useState<Record<string, string>>({});
   const [savingHierarchy, setSavingHierarchy] = useState(false);
 
-  // ── Policy ─────────────────────────────────────────────
   const [policies, setPolicies] = useState<any[]>([]);
   const [policyForm, setPolicyForm] = useState({
     year: new Date().getFullYear(),
@@ -56,13 +52,11 @@ export default function AdminPanel() {
   });
   const [policyLoading, setPolicyLoading] = useState(false);
 
-  // ── Holidays ───────────────────────────────────────────
   const [holidays, setHolidays] = useState<any[]>([]);
   const [holidayForm, setHolidayForm] = useState({ policy_id: "", name: "", date: "", is_floater: false });
   const [holidayLoading, setHolidayLoading] = useState(false);
   const [deletingHolidayId, setDeletingHolidayId] = useState<string | null>(null);
 
-  // ── Fetch ──────────────────────────────────────────────
   const fetchUsers = async () => {
     if (!token) return;
     setUsersLoading(true);
@@ -108,7 +102,6 @@ export default function AdminPanel() {
     setTimeout(() => { setError(""); setSuccess(""); }, 4000);
   };
 
-  // ── User creation ──────────────────────────────────────
   const handleCreateUser = async () => {
     const { name, email, employee_id, password, role, manager_id } = userForm;
     if (!name || !email || !employee_id || !password) {
@@ -145,7 +138,7 @@ export default function AdminPanel() {
     }
   };
 
-  // ── Hierarchy ──────────────────────────────────────────
+ 
   const handleSaveHierarchy = async () => {
     setSavingHierarchy(true);
     try {
@@ -172,7 +165,6 @@ export default function AdminPanel() {
     return users.find((u) => u.id === managerId)?.name ?? "—";
   };
 
-  // ── Policy ─────────────────────────────────────────────
   const handlePolicySubmit = async () => {
     setPolicyLoading(true);
     try {
@@ -186,7 +178,6 @@ export default function AdminPanel() {
     }
   };
 
-  // ── Holidays ───────────────────────────────────────────
   const handleAddHoliday = async () => {
     if (!holidayForm.policy_id || !holidayForm.name || !holidayForm.date) {
       notify("Policy, name and date are required.", true); return;
@@ -227,18 +218,16 @@ export default function AdminPanel() {
     { key: "holidays",  label: "Holidays" },
   ];
 
-  // ── Non-admin users eligible to be managers ────────────
   const managerOptions = users.filter((u) => u.role === "manager" || u.role === "admin");
 
   return (
     <div className="space-y-6 max-w-5xl">
-      {/* Header */}
+ 
       <div>
         <h2 className="text-xl font-bold text-slate-800">Admin Panel</h2>
         <p className="text-sm text-slate-500 mt-0.5">Manage users, hierarchy, leave policies and holidays</p>
       </div>
 
-      {/* Global alerts */}
       {error && (
         <div className="px-4 py-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-600 text-sm font-medium">{error}</div>
       )}
@@ -246,7 +235,6 @@ export default function AdminPanel() {
         <div className="px-4 py-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-700 text-sm font-medium">{success}</div>
       )}
 
-      {/* Tabs */}
       <div className="flex gap-1.5 bg-slate-100 rounded-xl p-1 w-fit">
         {tabs.map((tab) => (
           <button key={tab.key} onClick={() => setActiveTab(tab.key)}
@@ -258,7 +246,6 @@ export default function AdminPanel() {
         ))}
       </div>
 
-      {/* ── USERS TAB ── */}
       {activeTab === "users" && (
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-8 space-y-6">
           <div className="flex items-center justify-between">
@@ -272,7 +259,7 @@ export default function AdminPanel() {
             </button>
           </div>
 
-          {/* Create user form */}
+        
           {showUserForm && (
             <div className="bg-slate-50 rounded-2xl border border-slate-200 p-6 space-y-4">
               <h4 className="font-semibold text-slate-700">New User</h4>
@@ -323,7 +310,6 @@ export default function AdminPanel() {
             </div>
           )}
 
-          {/* Users table */}
           <div className="overflow-x-auto rounded-xl border border-slate-200">
             <table className="w-full text-sm">
               <thead>
@@ -363,7 +349,6 @@ export default function AdminPanel() {
         </div>
       )}
 
-      {/* ── HIERARCHY TAB ── */}
       {activeTab === "hierarchy" && (
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-8 space-y-6">
           <div className="flex items-center justify-between">
@@ -433,7 +418,7 @@ export default function AdminPanel() {
                           value={currentManagerId ?? ""}
                           onChange={(e) => {
                             const val = e.target.value || null;
-                            // If reverted to original, remove from changes
+                           
                             if (val === u.manager_id) {
                               setHierarchyChanges((prev) => {
                                 const next = { ...prev };
@@ -447,7 +432,7 @@ export default function AdminPanel() {
                           className="px-3 py-2 border border-slate-200 rounded-xl text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white appearance-none">
                           <option value="">No manager</option>
                           {users
-                            .filter((m) => m.id !== u.id) // can't report to self
+                            .filter((m) => m.id !== u.id) 
                             .map((m) => (
                               <option key={m.id} value={m.id}>{m.name} ({m.role})</option>
                             ))}
@@ -462,7 +447,7 @@ export default function AdminPanel() {
         </div>
       )}
 
-      {/* ── POLICY TAB ── */}
+  
       {activeTab === "policy" && (
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-8 space-y-6">
           <div>
@@ -523,7 +508,6 @@ export default function AdminPanel() {
         </div>
       )}
 
-      {/* ── HOLIDAYS TAB ── */}
       {activeTab === "holidays" && (
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-8 space-y-6">
           <div>

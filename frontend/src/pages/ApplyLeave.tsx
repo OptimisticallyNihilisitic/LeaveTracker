@@ -225,7 +225,7 @@ export default function ApplyLeave() {
         </div>
       </div>
 
-      {/* Leave Balance Sidebar */}
+ 
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
         <h3 className="font-bold text-slate-800 mb-5">Leave Balance Breakdown</h3>
         <div className="space-y-4">

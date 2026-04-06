@@ -1,7 +1,6 @@
 import supabase from "../config/supabaseClient.js";
 
 export const applyLeave = async ({ userId, leave_type, start_date, end_date, days, reason }) => {
-  // Always look up the employee's current manager and role fresh from the users table
   const { data: employee, error: empError } = await supabase
     .from("users")
     .select("manager_id, role")
@@ -14,7 +13,6 @@ export const applyLeave = async ({ userId, leave_type, start_date, end_date, day
     throw new Error("You cannot apply for a leave because no manager is assigned to you. Please contact admin.");
   }
 
-  // Check for overlapping leaves
   const { data: overlappingLeaves, error: overlapError } = await supabase
     .from("leave_requests")
     .select("id")
@@ -59,7 +57,6 @@ export const applyLeave = async ({ userId, leave_type, start_date, end_date, day
 };
 
 export const cancelLeave = async (leaveId, userId) => {
-  // Only allow cancellation of pending leaves owned by the user
   const { data: existing, error: fetchError } = await supabase
     .from("leave_requests")
     .select("id, status, user_id")
@@ -91,7 +88,6 @@ export const getMyLeaves = async (userId) => {
 };
 
 export const getTeamLeaves = async (managerId) => {
-  // First get all leave requests for this manager
   const { data: leaves, error: leavesError } = await supabase
     .from("leave_requests")
     .select("*")
@@ -101,7 +97,6 @@ export const getTeamLeaves = async (managerId) => {
   if (leavesError) throw leavesError;
   if (!leaves || leaves.length === 0) return [];
 
-  // Then enrich with user info
   const userIds = [...new Set(leaves.map((l) => l.user_id))];
 
   const { data: users, error: usersError } = await supabase
@@ -120,7 +115,7 @@ export const getTeamLeaves = async (managerId) => {
 };
 
 export const reviewLeave = async ({ leaveId, managerId, status, comments }) => {
-  // Verify this leave belongs to this manager
+
   const { data: existing, error: fetchError } = await supabase
     .from("leave_requests")
     .select("id, status, manager_id")

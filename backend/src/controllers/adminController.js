@@ -1,6 +1,6 @@
 import * as adminService from "../services/adminService.js";
 
-// ── Users ──────────────────────────────────────────────
+//Users 
 
 export const getAllUsers = async (req, res) => {
   try {
@@ -48,7 +48,7 @@ export const deleteUser = async (req, res) => {
   }
 };
 
-// ── Policies ───────────────────────────────────────────
+//Policies
 
 export const getPolicies = async (req, res) => {
   try {
@@ -74,7 +74,7 @@ export const upsertPolicy = async (req, res) => {
   }
 };
 
-// ── Holidays ───────────────────────────────────────────
+//Holidays
 
 export const getHolidays = async (req, res) => {
   try {
@@ -109,7 +109,7 @@ export const deleteHoliday = async (req, res) => {
   }
 };
 
-// ── Leave & Attendance ─────────────────────────────────
+//Leave & Attendance
 
 export const getAllLeaves = async (req, res) => {
   try {
