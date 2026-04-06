@@ -12,7 +12,6 @@ app.use(cors({
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
   credentials: true
 }));
-app.options("*", cors()); // Enable preflight requests for all routes
 
 app.use(express.json());
 
