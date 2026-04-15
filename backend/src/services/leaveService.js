@@ -1,9 +1,10 @@
 import supabase from "../config/supabaseClient.js";
+import { sendLeaveApplicationEmail, sendLeaveApprovalEmail } from "./emailService.js";
 
 export const applyLeave = async ({ userId, leave_type, start_date, end_date, days, reason }) => {
   const { data: employee, error: empError } = await supabase
     .from("users")
-    .select("manager_id, role")
+    .select("name, email, manager_id, role")
     .eq("id", userId)
     .single();
 
@@ -53,6 +54,19 @@ export const applyLeave = async ({ userId, leave_type, start_date, end_date, day
     .single();
 
   if (error) throw error;
+
+  if (employee.manager_id && initialStatus === 'pending') {
+    const { data: manager } = await supabase
+      .from("users")
+      .select("email")
+      .eq("id", employee.manager_id)
+      .single();
+      
+    if (manager?.email) {
+      sendLeaveApplicationEmail(manager.email, employee.name, data).catch(console.error);
+    }
+  }
+
   return data;
 };
 
@@ -118,7 +132,7 @@ export const reviewLeave = async ({ leaveId, managerId, status, comments }) => {
 
   const { data: existing, error: fetchError } = await supabase
     .from("leave_requests")
-    .select("id, status, manager_id")
+    .select("id, status, manager_id, user_id, leave_type, start_date, end_date, days")
     .eq("id", leaveId)
     .single();
 
@@ -139,5 +153,17 @@ export const reviewLeave = async ({ leaveId, managerId, status, comments }) => {
     .single();
 
   if (error) throw error;
+
+  const { data: empUser } = await supabase.from("users").select("email").eq("id", existing.user_id).single();
+  const { data: managerUser } = await supabase.from("users").select("name").eq("id", managerId).single();
+  
+  if (empUser?.email && managerUser?.name) {
+    const leaveDetails = {
+      ...existing,
+      comments: comments
+    };
+    sendLeaveApprovalEmail(empUser.email, managerUser.name, status, leaveDetails).catch(console.error);
+  }
+
   return data;
 };

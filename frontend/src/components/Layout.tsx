@@ -21,7 +21,6 @@ const managerNav: NavItem[] = [
   { kind: "link", label: "Apply for Leave", page: "apply-leave" },
   { kind: "link", label: "Leaves", page: "leaves" },
   { kind: "link", label: "Holiday Calendar", page: "holiday-calendar" },
-  { kind: "section", label: "Manager" },
   { kind: "link", label: "Leave Approvals", page: "leave-approvals" },
 ];
 
@@ -56,15 +55,7 @@ export default function Layout({ currentPage, onNavigate, children }: LayoutProp
         <div className="px-5 py-5 border-b border-slate-100">
           <p className="font-semibold text-slate-800 text-sm">{user?.name ?? "—"}</p>
           <p className="text-xs text-emerald-600 font-medium mt-0.5">{user?.email ?? ""}</p>
-          {user?.role && (
-            <span className={`inline-block mt-1.5 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
-              user.role === "admin" ? "bg-violet-100 text-violet-600"
-              : user.role === "manager" ? "bg-blue-100 text-blue-600"
-              : "bg-emerald-100 text-emerald-600"
-            }`}>
-              {roleLabel[user.role]}
-            </span>
-          )}
+          
         </div>
 
         <nav className="flex-1 px-3 py-4 space-y-0.5">

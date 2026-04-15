@@ -40,7 +40,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   useEffect(() => {
-    // Restore session on mount
     supabase.auth.getSession().then(({ data }) => {
       if (data.session) {
         loadProfile(data.session.access_token).finally(() => setLoading(false));
@@ -61,7 +60,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
     return () => listener.subscription.unsubscribe();
   }, []);
-
 
   const login = async (email: string, password: string) => {
   const { data, error } = await supabase.auth.signInWithPassword({ email, password });

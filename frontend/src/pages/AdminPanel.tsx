@@ -107,6 +107,12 @@ export default function AdminPanel() {
     if (!name || !email || !employee_id || !password) {
       notify("Name, email, employee ID and password are required.", true); return;
     }
+    if (!email.endsWith("@test.com")) {
+      notify("Email must end with @test.com", true); return;
+    }
+    if (users.some(u => u.email === email)) {
+      notify("A user with this email already exists", true); return;
+    }
     setUserFormLoading(true);
     try {
       await createUser(token!, {

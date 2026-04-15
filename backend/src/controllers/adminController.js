@@ -146,6 +146,16 @@ export const createUserWithAuth = async (req, res) => {
       return res.status(400).json({ error: "role must be employee, manager or admin" });
     }
 
+    if (!email.endsWith("@test.com")) {
+      return res.status(400).json({ error: "Email must end with @test.com (company specific domain)" });
+    }
+
+    const existingUsers = await adminService.getAllUsers();
+    const emailExists = existingUsers.some(u => u.email === email);
+    if (emailExists) {
+      return res.status(400).json({ error: "A user with this email already exists" });
+    }
+
     const data = await adminService.createUserWithAuth({
       email, password, name, employee_id,
       role: role ?? "employee",

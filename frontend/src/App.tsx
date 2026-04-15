@@ -25,7 +25,7 @@ function AppInner() {
       </div>
     );
   }
-
+  
   if (!user) return <Login />;
 
   const activePage = currentPage === "dashboard" && user.role === "admin" ? "admin-panel" : currentPage;
