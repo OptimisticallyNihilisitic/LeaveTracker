@@ -155,6 +155,13 @@ export const createUserWithAuth = async (req, res) => {
     if (emailExists) {
       return res.status(400).json({ error: "A user with this email already exists" });
     }
+    
+    // Check if there's a pending invitation for this email
+    const existingInvitations = await adminService.getInvitations();
+    const pendingInvitationExists = existingInvitations.some(inv => inv.email === email && inv.status === 'pending');
+    if (pendingInvitationExists) {
+      return res.status(400).json({ error: "A pending invitation for this email already exists. Cancel it before manually adding." });
+    }
 
     const data = await adminService.createUserWithAuth({
       email, password, name, employee_id,
@@ -186,3 +193,51 @@ export const assignManager = async (req, res) => {
     res.status(400).json({ error: err.message });
   }
 };
+
+// Invitations
+
+export const createInvitation = async (req, res) => {
+  try {
+    const { email, name, employee_id, role, manager_id } = req.body;
+
+    if (!email || !name || !employee_id) {
+      return res.status(400).json({ error: "email, name, and employee_id are required" });
+    }
+
+    if (!email.endsWith("@test.com")) {
+      return res.status(400).json({ error: "Email must end with @test.com (company specific domain)" });
+    }
+
+    const data = await adminService.createInvitation({ email, name, employee_id, role, manager_id });
+    res.status(201).json(data);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+};
+
+export const getInvitations = async (req, res) => {
+  try {
+    const data = await adminService.getInvitations();
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+export const cancelInvitation = async (req, res) => {
+  try {
+    const data = await adminService.cancelInvitation(req.params.id);
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+export const resendInvitation = async (req, res) => {
+  try {
+    const data = await adminService.resendInvitation(req.params.id);
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};

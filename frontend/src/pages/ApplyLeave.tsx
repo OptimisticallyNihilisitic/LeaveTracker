@@ -18,7 +18,7 @@ export default function ApplyLeave() {
   const [holidays, setHolidays] = useState<Holiday[]>([]);
   
   const [error, setError] = useState("");
-  const [success, setSuccess] = useState(false);
+  const [successMsg, setSuccessMsg] = useState("");
 
   useEffect(() => {
     if (!token) return;
@@ -34,7 +34,7 @@ export default function ApplyLeave() {
       })
       .catch(console.error);
   }, [token]);
-
+ 
   // Calculate leaves left dynamically
   const consumedCasual = leaves
     .filter((l) => l.status === "approved" && l.leave_type === "casual")
@@ -119,6 +119,20 @@ export default function ApplyLeave() {
       setError("One or more selected days are not designated floater holidays."); return;
     }
 
+    if (leaveType === "sick") {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const requestStart = new Date(from);
+      requestStart.setHours(0, 0, 0, 0);
+      
+      const diffTime = requestStart.getTime() - today.getTime();
+      const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+      
+      if (diffDays < 0 || diffDays > 1) {
+        setError("Sick leaves can only be applied for starting today or tomorrow."); return;
+      }
+    }
+
     if (leaveType === "casual" && numDays > casualLeft) {
       setError(`Insufficient balance. You only have ${casualLeft} Casual Leave(s) left.`); return;
     }
@@ -138,7 +152,14 @@ export default function ApplyLeave() {
         days: numDays,
         reason,
       });
-      setSuccess(true);
+      
+      const isAutoApproved = user?.role === "admin" || (user?.role === "manager" && !user?.manager_id) || leaveType === "sick";
+      if (isAutoApproved) {
+        setSuccessMsg("Leave request auto-approved successfully and recorded to your balance!");
+      } else {
+        setSuccessMsg("Leave request submitted successfully! Your manager will be notified.");
+      }
+      
       setFrom(""); setTo(""); setLeaveType(""); setReason("");
       
       // Optionally refresh leaves data to update balances immediately
@@ -156,11 +177,9 @@ export default function ApplyLeave() {
       <div className="lg:col-span-2 bg-white rounded-2xl border border-slate-200 shadow-sm p-8">
         <h2 className="text-xl font-bold text-slate-800 mb-6">Leave Request Form</h2>
 
-        {success && (
+        {successMsg && (
           <div className="mb-5 px-4 py-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-700 text-sm font-medium">
-            {user?.role === "admin" || (user?.role === "manager" && !user?.manager_id)
-              ? "Leave request auto-approved successfully and recorded to your balance!"
-              : "Leave request submitted successfully! Your manager will be notified."}
+            {successMsg}
           </div>
         )}
         {error && (
@@ -174,13 +193,13 @@ export default function ApplyLeave() {
             <div>
               <label className="block text-sm font-semibold text-slate-700 mb-1.5">From</label>
               <input type="date" value={from}
-                onChange={(e) => { setFrom(e.target.value); setSuccess(false); }}
+                onChange={(e) => { setFrom(e.target.value); setSuccessMsg(""); }}
                 className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-transparent transition-all bg-slate-50" />
             </div>
             <div>
               <label className="block text-sm font-semibold text-slate-700 mb-1.5">To</label>
               <input type="date" value={to}
-                onChange={(e) => { setTo(e.target.value); setSuccess(false); }}
+                onChange={(e) => { setTo(e.target.value); setSuccessMsg(""); }}
                 className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-transparent transition-all bg-slate-50" />
             </div>
           </div>
@@ -217,7 +236,7 @@ export default function ApplyLeave() {
               className="flex-1 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-60 text-white font-semibold py-3 rounded-xl transition-colors shadow-sm">
               {loading ? "Submitting..." : "Submit"}
             </button>
-            <button onClick={() => { setFrom(""); setTo(""); setLeaveType(""); setReason(""); setError(""); setSuccess(false); }}
+            <button onClick={() => { setFrom(""); setTo(""); setLeaveType(""); setReason(""); setError(""); setSuccessMsg(""); }}
               className="flex-1 bg-white hover:bg-rose-50 text-rose-500 font-semibold py-3 rounded-xl border border-rose-200 transition-colors">
               Cancel
             </button>

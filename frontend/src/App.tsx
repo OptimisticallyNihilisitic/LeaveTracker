@@ -7,16 +7,23 @@ import Leaves from "./pages/Leaves";
 import HolidayCalendar from "./pages/HolidayCalendar";
 import LeaveApprovals from "./pages/LeaveApprovals";
 import AdminPanel from "./pages/AdminPanel";
-import { useState } from "react";
+import ChangePassword from "./pages/ChangePassword";
+import InviteSetup from "./pages/InviteSetup";
+import { useState, useEffect } from "react";
+
 
 type Page =
   | "dashboard" | "apply-leave" | "leaves"
   | "holiday-calendar" | "leave-approvals"
-  | "admin-panel";
+  | "admin-panel" | "change-password";
 
 function AppInner() {
   const { user, loading } = useAuth();
   const [currentPage, setCurrentPage] = useState<Page>("dashboard");
+
+  if (window.location.pathname.startsWith('/invite/')) {
+    return <InviteSetup />;
+  }
 
   if (loading) {
     return (
@@ -36,7 +43,7 @@ function AppInner() {
     // Guard admin-only pages
     if (page === "admin-panel" && user.role !== "admin") return;
     // Guard employee-only pages from admin
-    if (user.role === "admin" && page !== "admin-panel") return;
+    if (user.role === "admin" && page !== "admin-panel" && page !== "change-password") return;
     setCurrentPage(page as Page);
   };
 
@@ -48,6 +55,7 @@ function AppInner() {
       case "holiday-calendar":      return <HolidayCalendar />;
       case "leave-approvals":       return user.role === "manager" ? <LeaveApprovals /> : <Dashboard />;
       case "admin-panel":           return user.role === "admin" ? <AdminPanel /> : <Dashboard />;
+      case "change-password":       return <ChangePassword />;
       default:                      return <Dashboard />;
     }
   };

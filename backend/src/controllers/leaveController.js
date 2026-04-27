@@ -4,8 +4,8 @@ export const applyLeave = async (req, res) => {
   try {
     const { leave_type, start_date, end_date, days, reason } = req.body;
 
-    if (!leave_type || !start_date || !end_date || !days) {
-      return res.status(400).json({ error: "leave_type, start_date, end_date and days are required" });
+    if (!leave_type || !start_date || !end_date || !days || !reason) {
+      return res.status(400).json({ error: "Please select start and end date, leave type and reason." });
     }
 
     const data = await leaveService.applyLeave({

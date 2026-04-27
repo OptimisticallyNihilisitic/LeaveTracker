@@ -1,4 +1,5 @@
 import supabase from "../config/supabaseClient.js";
+import { sendInvitationEmail } from "./emailService.js";
 
 //Users
 
@@ -31,11 +32,17 @@ export const updateUser = async (userId, updates) => {
     .select()
     .single();
 
-  if (error) throw error;
+  if (error) throw error;edg
   return data;
 };
 
 export const deleteUser = async (userId) => {
+  // Remove user as manager from any pending invitations to avoid foreign key violations
+  await supabase
+    .from("invitations")
+    .update({ manager_id: null })
+    .eq("manager_id", userId);
+
   const { error } = await supabase
     .from("users")
     .delete()
@@ -195,6 +202,12 @@ export const createUserWithAuth = async ({ email, password, name, employee_id, r
 };
 
 export const deleteUserWithAuth = async (userId) => {
+  // Remove user as manager from any pending invitations to avoid foreign key violations
+  await supabase
+    .from("invitations")
+    .update({ manager_id: null })
+    .eq("manager_id", userId);
+
   const { error: dbError } = await supabase
     .from("users")
     .delete()
@@ -228,4 +241,77 @@ export const assignManager = async (userId, managerId) => {
     .eq("status", "pending");
 
   return data;
+};
+
+// Invitations
+
+export const createInvitation = async ({ email, name, employee_id, role, manager_id }) => {
+  // Check if user already exists
+  const { data: existingUser } = await supabase.from('users').select('id').eq('email', email).maybeSingle();
+  if (existingUser) throw new Error("A user with this email already exists");
+
+  // Check if invitation already exists and is pending
+  const { data: existingInv } = await supabase.from('invitations').select('id, token').eq('email', email).eq('status', 'pending').maybeSingle();
+  if (existingInv) throw new Error("A pending invitation for this email already exists");
+
+  const { data, error } = await supabase
+    .from("invitations")
+    .insert({
+      email, name, employee_id, role: role || 'employee', manager_id: manager_id || null, status: 'pending'
+    })
+    .select()
+    .single();
+
+  if (error) throw new Error(error.message);
+
+  await sendInvitationEmail(email, name, data.token);
+
+  return data;
+};
+
+export const getInvitations = async () => {
+  const { data, error } = await supabase
+    .from("invitations")
+    .select("*, users!manager_id(name, email)")
+    .order("created_at", { ascending: false });
+
+  if (error) throw new Error(error.message);
+  return data;
+};
+
+export const cancelInvitation = async (id) => {
+  const { data, error } = await supabase
+    .from("invitations")
+    .update({ status: 'cancelled', updated_at: new Date().toISOString() })
+    .eq("id", id)
+    .select()
+    .single();
+
+  if (error) throw new Error(error.message);
+  return data;
+};
+
+export const resendInvitation = async (id) => {
+  const { data: inv, error: fetchError } = await supabase
+    .from("invitations")
+    .select("*")
+    .eq("id", id)
+    .single();
+
+  if (fetchError) throw new Error(fetchError.message);
+  if (inv.status !== 'pending') throw new Error("Can only resend pending invitations");
+
+  const newToken = crypto.randomUUID();
+  const { data: updatedInv, error: updateError } = await supabase
+    .from("invitations")
+    .update({ token: newToken, updated_at: new Date().toISOString() })
+    .eq("id", id)
+    .select()
+    .single();
+
+  if (updateError) throw new Error(updateError.message);
+
+  await sendInvitationEmail(updatedInv.email, updatedInv.name, updatedInv.token);
+
+  return updatedInv;
 };

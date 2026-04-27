@@ -4,9 +4,11 @@ import {
   getPolicies, upsertPolicy,
   getHolidays, addHoliday, deleteHoliday,
   createUser, deleteUser, assignManager, getAllUsers, updateUser,
+  getInvitations, createInvitation, cancelInvitation, resendInvitation, type InvitationRecord
 } from "../api/admin";
 
-type Tab = "users" | "hierarchy" | "policy" | "holidays";
+type Tab = "users" | "invitations" | "hierarchy" | "policy" | "holidays";
+
 
 interface UserRecord {
   id: string;
@@ -41,7 +43,16 @@ export default function AdminPanel() {
   const [userFormLoading, setUserFormLoading] = useState(false);
   const [showUserForm, setShowUserForm] = useState(false);
 
+  const [invitations, setInvitations] = useState<InvitationRecord[]>([]);
+  const [invitationsLoading, setInvitationsLoading] = useState(true);
+  const [showInviteForm, setShowInviteForm] = useState(false);
+  const [inviteForm, setInviteForm] = useState({
+    name: "", email: "", employee_id: "", role: "employee" as "employee"|"manager"|"admin", manager_id: ""
+  });
+  const [inviteFormLoading, setInviteFormLoading] = useState(false);
+
   const [hierarchyChanges, setHierarchyChanges] = useState<Record<string, string | null>>({});
+
   const [roleChanges, setRoleChanges] = useState<Record<string, string>>({});
   const [savingHierarchy, setSavingHierarchy] = useState(false);
 
@@ -70,6 +81,20 @@ export default function AdminPanel() {
     }
   };
 
+  const fetchInvitations = async () => {
+    if (!token) return;
+    setInvitationsLoading(true);
+    try {
+      const data = await getInvitations(token);
+      setInvitations(data);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setInvitationsLoading(false);
+    }
+  };
+
+
   const fetchPoliciesAndHolidays = async () => {
     if (!token) return;
     try {
@@ -93,8 +118,10 @@ export default function AdminPanel() {
 
   useEffect(() => {
     fetchUsers();
+    fetchInvitations();
     fetchPoliciesAndHolidays();
   }, [token]);
+
 
   const notify = (msg: string, isError = false) => {
     if (isError) { setError(msg); setSuccess(""); }
@@ -143,6 +170,51 @@ export default function AdminPanel() {
       setDeletingId(null);
     }
   };
+
+  const handleInviteUser = async () => {
+    const { name, email, employee_id, role, manager_id } = inviteForm;
+    if (!name || !email || !employee_id) {
+      notify("Name, email and employee ID are required.", true); return;
+    }
+    if (!email.endsWith("@test.com")) {
+      notify("Email must end with @test.com", true); return;
+    }
+    setInviteFormLoading(true);
+    try {
+      await createInvitation(token!, { name, email, employee_id, role, manager_id: manager_id || null });
+      notify(`Invitation sent to ${email}`);
+      setInviteForm({ name: "", email: "", employee_id: "", role: "employee", manager_id: "" });
+      setShowInviteForm(false);
+      fetchInvitations();
+    } catch (err: any) {
+      notify(err.message, true);
+    } finally {
+      setInviteFormLoading(false);
+    }
+  };
+
+  const handleCancelInvite = async (id: string) => {
+    if (!confirm("Cancel this invitation?")) return;
+    try {
+      await cancelInvitation(token!, id);
+      notify("Invitation cancelled.");
+      fetchInvitations();
+    } catch (err: any) {
+      notify(err.message, true);
+    }
+  };
+
+  const handleResendInvite = async (id: string) => {
+    try {
+      await resendInvitation(token!, id);
+      notify("Invitation resent.");
+      fetchInvitations();
+    } catch (err: any) {
+      notify(err.message, true);
+    }
+  };
+
+
 
  
   const handleSaveHierarchy = async () => {
@@ -218,10 +290,11 @@ export default function AdminPanel() {
     new Date(d).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
 
   const tabs: { key: Tab; label: string }[] = [
-    { key: "users",     label: "Users" },
-    { key: "hierarchy", label: "Reporting Hierarchy" },
-    { key: "policy",    label: "Leave Policy" },
-    { key: "holidays",  label: "Holidays" },
+    { key: "users",       label: "Users" },
+    { key: "invitations", label: "Invitations" },
+    { key: "hierarchy",   label: "Reporting Hierarchy" },
+    { key: "policy",      label: "Leave Policy" },
+    { key: "holidays",    label: "Holidays" },
   ];
 
   const managerOptions = users.filter((u) => u.role === "manager" || u.role === "admin");
@@ -346,6 +419,109 @@ export default function AdminPanel() {
                         className="text-xs font-semibold text-rose-500 hover:text-rose-600 border border-rose-200 hover:border-rose-300 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50">
                         {deletingId === u.id ? "..." : "Delete"}
                       </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {activeTab === "invitations" && (
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-8 space-y-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="font-bold text-slate-800">Email Invitations</h3>
+              <p className="text-sm text-slate-500 mt-0.5">Invite employees via email and manage pending setups.</p>
+            </div>
+            <button onClick={() => setShowInviteForm((v) => !v)}
+              className="bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-semibold px-4 py-2 rounded-xl transition-colors shadow-sm">
+              {showInviteForm ? "Cancel" : "+ Invite Employee"}
+            </button>
+          </div>
+
+          {showInviteForm && (
+            <div className="bg-slate-50 rounded-2xl border border-slate-200 p-6 space-y-4">
+              <h4 className="font-semibold text-slate-700">New Invitation</h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {[
+                  { key: "name",        label: "Full Name",    type: "text",     placeholder: "e.g. Rahul V" },
+                  { key: "email",       label: "Email",        type: "email",    placeholder: "e.g. rahul@test.com" },
+                  { key: "employee_id", label: "Employee ID",  type: "text",     placeholder: "e.g. EMP004" },
+                ].map(({ key, label, type, placeholder }) => (
+                  <div key={key}>
+                    <label className="block text-sm font-semibold text-slate-700 mb-1.5">{label}</label>
+                    <input type={type} placeholder={placeholder}
+                      value={inviteForm[key as keyof typeof inviteForm] as string}
+                      onChange={(e) => setInviteForm((f) => ({ ...f, [key]: e.target.value }))}
+                      className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white" />
+                  </div>
+                ))}
+
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-1.5">Role</label>
+                  <select value={inviteForm.role}
+                    onChange={(e) => setInviteForm((f) => ({ ...f, role: e.target.value as any }))}
+                    className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white appearance-none">
+                    <option value="employee">Employee</option>
+                    <option value="manager">Manager</option>
+                    <option value="admin">Admin</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-1.5">Reports To (optional)</label>
+                  <select value={inviteForm.manager_id}
+                    onChange={(e) => setInviteForm((f) => ({ ...f, manager_id: e.target.value }))}
+                    className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white appearance-none">
+                    <option value="">No manager</option>
+                    {managerOptions.map((u) => (
+                      <option key={u.id} value={u.id}>{u.name} ({u.role})</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <button onClick={handleInviteUser} disabled={inviteFormLoading}
+                className="bg-emerald-500 hover:bg-emerald-600 disabled:opacity-60 text-white font-semibold px-6 py-2.5 rounded-xl transition-colors shadow-sm">
+                {inviteFormLoading ? "Sending..." : "Send Invitation"}
+              </button>
+            </div>
+          )}
+
+          <div className="overflow-x-auto rounded-xl border border-slate-200">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-slate-50 border-b border-slate-200">
+                  {["Employee ID", "Name", "Email", "Status", "Sent At", "Actions"].map((h, i) => (
+                    <th key={i} className="text-left px-5 py-3 text-xs font-bold uppercase tracking-wider text-slate-500">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {invitationsLoading ? (
+                  <tr><td colSpan={6} className="px-5 py-8 text-center text-slate-400">Loading...</td></tr>
+                ) : invitations.length === 0 ? (
+                  <tr><td colSpan={6} className="px-5 py-8 text-center text-slate-400">No invitations yet.</td></tr>
+                ) : invitations.map((inv) => (
+                  <tr key={inv.id} className="hover:bg-slate-50 transition-colors">
+                    <td className="px-5 py-4 text-slate-500 font-mono text-xs">{inv.employee_id}</td>
+                    <td className="px-5 py-4 font-semibold text-slate-800">{inv.name}</td>
+                    <td className="px-5 py-4 text-slate-600">{inv.email}</td>
+                    <td className="px-5 py-4">
+                      {inv.status === "pending" && <span className="bg-amber-100 text-amber-700 text-xs font-semibold px-2.5 py-1 rounded-full">Pending</span>}
+                      {inv.status === "accepted" && <span className="bg-emerald-100 text-emerald-700 text-xs font-semibold px-2.5 py-1 rounded-full">Accepted</span>}
+                      {inv.status === "cancelled" && <span className="bg-slate-100 text-slate-500 text-xs font-semibold px-2.5 py-1 rounded-full">Cancelled</span>}
+                    </td>
+                    <td className="px-5 py-4 text-slate-500 text-xs">{new Date(inv.created_at).toLocaleString()}</td>
+                    <td className="px-5 py-4 flex gap-2">
+                       {inv.status === "pending" && (
+                         <>
+                           <button onClick={() => handleResendInvite(inv.id)} className="text-xs font-semibold text-blue-500 hover:text-blue-600 border border-blue-200 hover:border-blue-300 px-3 py-1.5 rounded-lg transition-colors">Resend</button>
+                           <button onClick={() => handleCancelInvite(inv.id)} className="text-xs font-semibold text-rose-500 hover:text-rose-600 border border-rose-200 hover:border-rose-300 px-3 py-1.5 rounded-lg transition-colors">Cancel</button>
+                         </>
+                       )}
                     </td>
                   </tr>
                 ))}
@@ -539,7 +715,7 @@ export default function AdminPanel() {
                 <input type="text" value={holidayForm.name} placeholder="e.g. Pongal"
                   onChange={(e) => setHolidayForm((f) => ({ ...f, name: e.target.value }))}
                   className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-slate-50" />
-              </div>
+              </div> 
               <div>
                 <label className="block text-sm font-semibold text-slate-700 mb-1.5">Date</label>
                 <input type="date" value={holidayForm.date}

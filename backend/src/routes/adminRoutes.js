@@ -28,4 +28,10 @@ router.delete("/holidays/:id", ...adminOnly, adminController.deleteHoliday);
 router.get("/leave",      ...adminOnly, adminController.getAllLeaves);
 router.get("/attendance", ...adminOnly, adminController.getAllAttendance);
 
+//Invitations (admin only)
+router.get("/invitations",             ...adminOnly, adminController.getInvitations);
+router.post("/invitations",            ...adminOnly, adminController.createInvitation);
+router.patch("/invitations/:id/cancel",...adminOnly, adminController.cancelInvitation);
+router.post("/invitations/:id/resend", ...adminOnly, adminController.resendInvitation);
+
 export default router;

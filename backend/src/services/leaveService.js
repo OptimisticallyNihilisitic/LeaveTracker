@@ -4,7 +4,7 @@ import { sendLeaveApplicationEmail, sendLeaveApprovalEmail } from "./emailServic
 export const applyLeave = async ({ userId, leave_type, start_date, end_date, days, reason }) => {
   const { data: employee, error: empError } = await supabase
     .from("users")
-    .select("name, email, manager_id, role")
+    .select("name, email, manager_id, role, sick_leaves, casual_leaves, floater_leaves")
     .eq("id", userId)
     .single();
 
@@ -27,15 +27,52 @@ export const applyLeave = async ({ userId, leave_type, start_date, end_date, day
     throw new Error("You already have an active leave request during the selected dates.");
   }
 
+  const balanceField = leave_type === "sick" ? "sick_leaves" : leave_type === "casual" ? "casual_leaves" : leave_type === "floater" ? "floater_leaves" : null;
+  
+  if (balanceField) {
+    const { data: existingLeaves, error: existingLeavesError } = await supabase
+      .from("leave_requests")
+      .select("days")
+      .eq("user_id", userId)
+      .eq("leave_type", leave_type)
+      .in("status", ["approved", "pending"]);
+
+    if (existingLeavesError) throw new Error(existingLeavesError.message);
+    
+    const consumedLeaves = existingLeaves ? existingLeaves.reduce((acc, l) => acc + (l.days || 0), 0) : 0;
+    const availableBalance = employee[balanceField] ?? 0;
+
+    if (availableBalance < days) {
+      const displayType = leave_type.charAt(0).toUpperCase() + leave_type.slice(1);
+      throw new Error(`Insufficient balance. You only have ${availableBalance} ${displayType} Leave(s) left.`);
+    }
+    else if (availableBalance - consumedLeaves < days) {
+      const displayType = leave_type.charAt(0).toUpperCase() + leave_type.slice(1);
+      throw new Error(`Insufficient balance. You only have ${availableBalance - consumedLeaves} ${displayType} Leave(s) left. Cancel other pending requests.`);
+    }
+  }
+
   let initialStatus = 'pending';
+  
   if (employee.role === 'admin') {
     initialStatus = 'approved';
-  } else if (employee.role === 'manager') {
-    if (!employee.manager_id) {
-      initialStatus = 'approved';
-    } else {
-      initialStatus = 'pending';
+  } else if (employee.role === 'manager' && !employee.manager_id) {
+    initialStatus = 'approved';
+  } else if (leave_type === 'sick') {
+    // 1. Date validation: must start today or tomorrow
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const requestStart = new Date(start_date);
+    requestStart.setHours(0, 0, 0, 0);
+    
+    const diffTime = requestStart.getTime() - today.getTime();
+    const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+    
+    if (diffDays < 0 || diffDays > 1) {
+      throw new Error("Sick leaves can only be applied for starting today or tomorrow.");
     }
+    
+    initialStatus = 'approved';
   }
 
   const { data, error } = await supabase
@@ -55,15 +92,21 @@ export const applyLeave = async ({ userId, leave_type, start_date, end_date, day
 
   if (error) throw error;
 
-  if (employee.manager_id && initialStatus === 'pending') {
-    const { data: manager } = await supabase
-      .from("users")
-      .select("email")
-      .eq("id", employee.manager_id)
-      .single();
+  if (employee.manager_id) {
+    const shouldNotify = 
+      initialStatus === 'pending' || 
+      (initialStatus === 'approved' && leave_type === 'sick');
       
-    if (manager?.email) {
-      sendLeaveApplicationEmail(manager.email, employee.name, data).catch(console.error);
+    if (shouldNotify) {
+      const { data: manager } = await supabase
+        .from("users")
+        .select("email")
+        .eq("id", employee.manager_id)
+        .single();
+        
+      if (manager?.email) {
+        sendLeaveApplicationEmail(manager.email, employee.name, data).catch(console.error);
+      }
     }
   }
 
@@ -75,7 +118,7 @@ export const cancelLeave = async (leaveId, userId) => {
     .from("leave_requests")
     .select("id, status, user_id")
     .eq("id", leaveId)
-    .single();
+    .single(); 
 
   if (fetchError || !existing) throw new Error("Leave request not found");
   if (existing.user_id !== userId) throw new Error("Forbidden");

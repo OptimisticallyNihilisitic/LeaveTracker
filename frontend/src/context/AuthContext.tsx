@@ -19,6 +19,7 @@ interface AuthContextType {
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
+  changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -62,11 +63,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   }, []);
 
   const login = async (email: string, password: string) => {
-  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-  if (error) throw new Error(error.message);
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) throw new Error(error.message);
 
-  await loadProfile(data.session.access_token);
-};
+    await loadProfile(data.session.access_token);
+  };
 
   const logout = async () => {
     await supabase.auth.signOut();
@@ -74,8 +75,31 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     setToken(null);
   };
 
+  const changePassword = async (currentPassword: string, newPassword: string) => {
+    if (!user) throw new Error("Not logged in");
+
+    // Re-authenticate to verify the current password
+    const { error: signInError } = await supabase.auth.signInWithPassword({
+      email: user.email,
+      password: currentPassword,
+    });
+
+    if (signInError) {
+      throw new Error("Incorrect current password.");
+    }
+
+    // Update to the new password
+    const { error: updateError } = await supabase.auth.updateUser({
+      password: newPassword,
+    });
+
+    if (updateError) {
+      throw new Error(updateError.message);
+    }
+  };
+
   return (
-    <AuthContext.Provider value={{ user, token, loading, login, logout }}>
+    <AuthContext.Provider value={{ user, token, loading, login, logout, changePassword }}>
       {children}
     </AuthContext.Provider>
   );

@@ -47,3 +47,35 @@ export const assignManager = (token: string, userId: string, manager_id: string 
   });
 
 export const getAllUsers = (token: string) => apiFetch<UserProfile[]>("/api/admin/users", token);
+
+// Invitations API
+
+export interface InvitationRecord {
+  id: string;
+  email: string;
+  name: string;
+  employee_id: string;
+  role: "employee" | "manager" | "admin";
+  manager_id: string | null;
+  status: "pending" | "accepted" | "cancelled";
+  token: string;
+  created_at: string;
+  users?: { name: string; email: string }; // manager details
+}
+
+export const getInvitations = (token: string) => 
+  apiFetch<InvitationRecord[]>("/api/admin/invitations", token);
+
+export const createInvitation = (token: string, body: {
+  email: string;
+  name: string;
+  employee_id: string;
+  role?: "employee" | "manager" | "admin";
+  manager_id?: string | null;
+}) => apiFetch<InvitationRecord>("/api/admin/invitations", token, { method: "POST", body: JSON.stringify(body) });
+
+export const cancelInvitation = (token: string, id: string) =>
+  apiFetch<InvitationRecord>(`/api/admin/invitations/${id}/cancel`, token, { method: "PATCH" });
+
+export const resendInvitation = (token: string, id: string) =>
+  apiFetch<InvitationRecord>(`/api/admin/invitations/${id}/resend`, token, { method: "POST" });

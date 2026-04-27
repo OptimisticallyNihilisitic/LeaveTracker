@@ -12,6 +12,8 @@ const employeeNav: NavItem[] = [
   { kind: "link", label: "Apply for Leave", page: "apply-leave" },
   { kind: "link", label: "Leaves", page: "leaves" },
   { kind: "link", label: "Holiday Calendar", page: "holiday-calendar" },
+  { kind: "section", label: "Account" },
+  { kind: "link", label: "Change Password", page: "change-password" },
 ];
 
 const managerNav: NavItem[] = [
@@ -22,11 +24,15 @@ const managerNav: NavItem[] = [
   { kind: "link", label: "Leaves", page: "leaves" },
   { kind: "link", label: "Holiday Calendar", page: "holiday-calendar" },
   { kind: "link", label: "Leave Approvals", page: "leave-approvals" },
+  { kind: "section", label: "Account" },
+  { kind: "link", label: "Change Password", page: "change-password" },
 ];
 
 const adminNav: NavItem[] = [
   { kind: "section", label: "Administration" },
   { kind: "link", label: "Admin Panel", page: "admin-panel" },
+  { kind: "section", label: "Account" },
+  { kind: "link", label: "Change Password", page: "change-password" },
 ];
 
 interface LayoutProps {
@@ -43,11 +49,7 @@ export default function Layout({ currentPage, onNavigate, children }: LayoutProp
     : user?.role === "manager" ? managerNav
     : employeeNav;
 
-  const roleLabel: Record<string, string> = {
-    employee: "Employee",
-    manager: "Manager",
-    admin: "Administrator",
-  };
+
 
   return (
     <div className="min-h-screen bg-slate-100 flex font-sans">
