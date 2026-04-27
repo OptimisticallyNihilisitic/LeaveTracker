@@ -119,6 +119,10 @@ export default function ApplyLeave() {
       setError("One or more selected days are not designated floater holidays."); return;
     }
 
+    if((new Date()).getTime() - (new Date(from)).getTime() > 7) {
+      setError(`Attendance cannot be regularized after 7 days. Please contact the admin.`); return;
+    }
+
     if (leaveType === "sick") {
       const today = new Date();
       today.setHours(0, 0, 0, 0);

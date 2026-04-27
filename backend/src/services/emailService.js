@@ -32,7 +32,7 @@ Dates: ${leaveDetails.start_date} to ${leaveDetails.end_date}
 Reason: ${leaveDetails.reason}
 Days: ${leaveDetails.days}
 
-${isAutoApproved ? 'This sick leave has been automatically approved. No action is required from you.' : 'Please review this request in the system.'}`;
+${isAutoApproved ? 'This sick leave has been automatically approved.' : 'Please review this request.'}`;
 
   try {
     if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
