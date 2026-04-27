@@ -9,7 +9,7 @@ import LeaveApprovals from "./pages/LeaveApprovals";
 import AdminPanel from "./pages/AdminPanel";
 import ChangePassword from "./pages/ChangePassword";
 import InviteSetup from "./pages/InviteSetup";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 
 
 type Page =
