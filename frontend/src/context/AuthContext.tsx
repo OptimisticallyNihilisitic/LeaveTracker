@@ -1,6 +1,8 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
 import { getMe } from "../api/user";
+import { getDeviceId } from "../lib/device";
+import { apiFetch } from "../api/apiFetch";
 
 interface UserProfile {
   id: string;
@@ -17,7 +19,9 @@ interface AuthContextType {
   user: UserProfile | null;
   token: string | null;
   loading: boolean;
+  mfaPending: boolean;
   login: (email: string, password: string) => Promise<void>;
+  verifyMfa: (otp: string) => Promise<void>;
   logout: () => Promise<void>;
   changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
 }
@@ -28,20 +32,46 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [mfaPending, setMfaPending] = useState(false);
+  const [tempToken, setTempToken] = useState<string | null>(null);
 
   const loadProfile = async (accessToken: string) => {
     try {
+      // Check MFA first
+      const mfaRes = await fetch(`${import.meta.env.VITE_API_URL ?? "http://localhost:5000"}/api/mfa/check`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "x-device-id": getDeviceId(),
+        },
+      });
+      const mfaData = await mfaRes.json();
+
+      if (mfaRes.status !== 200 || mfaData.requires_mfa) {
+        setMfaPending(true);
+        setTempToken(accessToken);
+        setUser(null);
+        setToken(null);
+        return;
+      }
+
       const profile = await getMe(accessToken);
       setUser(profile as UserProfile);
       setToken(accessToken);
+      setMfaPending(false);
+      setTempToken(null);
     } catch {
       setUser(null);
       setToken(null);
+      setMfaPending(false);
+      setTempToken(null);
     }
   };
 
   useEffect(() => {
+    let mounted = true;
     supabase.auth.getSession().then(({ data }) => {
+      if (!mounted) return;
       if (data.session) {
         loadProfile(data.session.access_token).finally(() => setLoading(false));
       } else {
@@ -51,15 +81,21 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
     // Listen for auth changes
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!mounted) return;
       if (session) {
         loadProfile(session.access_token);
       } else {
         setUser(null);
         setToken(null);
+        setMfaPending(false);
+        setTempToken(null);
       }
     });
 
-    return () => listener.subscription.unsubscribe();
+    return () => {
+      mounted = false;
+      listener.subscription.unsubscribe();
+    };
   }, []);
 
   const login = async (email: string, password: string) => {
@@ -69,10 +105,38 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     await loadProfile(data.session.access_token);
   };
 
+  const verifyMfa = async (otp: string) => {
+    if (!tempToken) throw new Error("No pending session found");
+
+    const res = await fetch(`${import.meta.env.VITE_API_URL ?? "http://localhost:5000"}/api/mfa/verify`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${tempToken}`,
+        "x-device-id": getDeviceId(),
+      },
+      body: JSON.stringify({ otp }),
+    });
+
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.error || "MFA Verification failed");
+    }
+
+    // Load profile properly after successful MFA
+    const profile = await getMe(tempToken);
+    setUser(profile as UserProfile);
+    setToken(tempToken);
+    setMfaPending(false);
+    setTempToken(null);
+  };
+
   const logout = async () => {
     await supabase.auth.signOut();
     setUser(null);
     setToken(null);
+    setMfaPending(false);
+    setTempToken(null);
   };
 
   const changePassword = async (currentPassword: string, newPassword: string) => {
@@ -99,7 +163,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, loading, login, logout, changePassword }}>
+    <AuthContext.Provider value={{ user, token, loading, mfaPending, login, verifyMfa, logout, changePassword }}>
       {children}
     </AuthContext.Provider>
   );

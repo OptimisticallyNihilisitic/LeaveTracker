@@ -9,7 +9,8 @@ import LeaveApprovals from "./pages/LeaveApprovals";
 import AdminPanel from "./pages/AdminPanel";
 import ChangePassword from "./pages/ChangePassword";
 import InviteSetup from "./pages/InviteSetup";
-import { useState } from "react";
+import ForgotPassword from "./pages/ForgotPassword";
+import { useState, useEffect } from "react";
 
 
 type Page =
@@ -21,8 +22,20 @@ function AppInner() {
   const { user, loading } = useAuth();
   const [currentPage, setCurrentPage] = useState<Page>("dashboard");
 
-  if (window.location.pathname.startsWith('/invite/')) {
+  const [currentPath, setCurrentPath] = useState(window.location.pathname);
+
+  useEffect(() => {
+    const handlePopState = () => setCurrentPath(window.location.pathname);
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  if (currentPath.startsWith('/invite/')) {
     return <InviteSetup />;
+  }
+
+  if (currentPath === '/forgot-password') {
+    return <ForgotPassword />;
   }
 
   if (loading) {

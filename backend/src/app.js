@@ -5,6 +5,7 @@ import attendanceRoutes from "./routes/attendanceRoutes.js";
 import userRoutes from "./routes/userRoutes.js";
 import adminRoutes from "./routes/adminRoutes.js";
 import inviteRoutes from "./routes/inviteRoutes.js";
+import mfaRoutes from "./routes/mfaRoutes.js";
 
 const app = express();
 
@@ -21,5 +22,6 @@ app.use("/api/leave", leaveRoutes);
 app.use("/api/attendance", attendanceRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/invite", inviteRoutes);
+app.use("/api/mfa", mfaRoutes);
 
 export default app;

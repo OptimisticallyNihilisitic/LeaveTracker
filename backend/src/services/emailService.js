@@ -99,3 +99,31 @@ If you have any questions, please contact your administrator.`;
     console.error('Error sending invitation email:', error);
   }
 };
+
+export const sendOtpEmail = async (email, otp, purpose) => {
+  if (!email) return;
+  const to = getTestEmailAlias(email);
+  
+  const subject = purpose === 'password_reset' 
+    ? 'Password Reset OTP - Leave Management System'
+    : 'Login Verification OTP - Leave Management System';
+    
+  const text = `Hello,
+
+Your One-Time Password (OTP) is: ${otp}
+
+This OTP is valid for 10 minutes. Please do not share it with anyone.
+
+If you did not request this, please ignore this email.`;
+
+  try {
+    if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
+      await transporter.sendMail({ from: process.env.EMAIL_USER, to, subject, text });
+      console.log(`OTP email sent to ${to} for purpose: ${purpose}`);
+    } else {
+      console.log(`[Email Mock] To: ${to} | Subject: ${subject} | OTP: ${otp}`);
+    }
+  } catch (error) {
+    console.error('Error sending OTP email:', error);
+  }
+};
