@@ -2,10 +2,9 @@ import { useState } from "react";
 import { useAuth } from "../context/AuthContext";
 
 export default function Login() {
-  const { login, mfaPending, verifyMfa } = useAuth();
+  const { login } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [otp, setOtp] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -22,18 +21,7 @@ export default function Login() {
     }
   };
 
-  const handleMfaSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError("");
-    setLoading(true);
-    try {
-      await verifyMfa(otp);
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
+
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-100 to-emerald-50 flex items-center justify-center p-4">
@@ -49,87 +37,51 @@ export default function Login() {
         </div>
 
         <div className="bg-white rounded-2xl shadow-xl shadow-slate-200/60 border border-slate-100 p-8">
-          {!mfaPending ? (
-            <>
-              <h2 className="text-xl font-bold text-slate-800 mb-6">Sign in to your account</h2>
+          <h2 className="text-xl font-bold text-slate-800 mb-6">Sign in to your account</h2>
 
-              <form onSubmit={handleLoginSubmit} className="space-y-5">
-                <div>
-                  <label className="block text-sm font-semibold text-slate-700 mb-1.5">Email</label>
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="Enter your email"
-                    required
-                    className="w-full px-4 py-3 bg-emerald-50 border border-emerald-100 rounded-xl text-slate-800 placeholder-slate-400 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-transparent transition-all"
-                  />
-                </div>
+          <form onSubmit={handleLoginSubmit} className="space-y-5">
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 mb-1.5">Email</label>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="Enter your email"
+                required
+                className="w-full px-4 py-3 bg-emerald-50 border border-emerald-100 rounded-xl text-slate-800 placeholder-slate-400 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-transparent transition-all"
+              />
+            </div>
 
-                <div>
-                  <label className="block text-sm font-semibold text-slate-700 mb-1.5">Password</label>
-                  <input
-                    type="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Enter your password"
-                    required
-                    className="w-full px-4 py-3 bg-emerald-50 border border-emerald-100 rounded-xl text-slate-800 placeholder-slate-400 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-transparent transition-all"
-                  />
-                </div>
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 mb-1.5">Password</label>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Enter your password"
+                required
+                className="w-full px-4 py-3 bg-emerald-50 border border-emerald-100 rounded-xl text-slate-800 placeholder-slate-400 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-transparent transition-all"
+              />
+            </div>
 
-                <div className="flex justify-end">
-                  <a href="/forgot-password" onClick={(e) => { e.preventDefault(); window.history.pushState({}, '', '/forgot-password'); window.dispatchEvent(new PopStateEvent('popstate')); }} className="text-sm font-medium text-emerald-600 hover:text-emerald-500">
-                    Forgot Password?
-                  </a>
-                </div>
+            <div className="flex justify-end">
+              <a href="/forgot-password" onClick={(e) => { e.preventDefault(); window.history.pushState({}, '', '/forgot-password'); window.dispatchEvent(new PopStateEvent('popstate')); }} className="text-sm font-medium text-emerald-600 hover:text-emerald-500">
+                Forgot Password?
+              </a>
+            </div>
 
-                {error && (
-                  <p className="text-sm text-rose-500 font-medium">{error}</p>
-                )}
+            {error && (
+              <p className="text-sm text-rose-500 font-medium">{error}</p>
+            )}
 
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="w-full bg-emerald-500 hover:bg-emerald-600 disabled:opacity-60 text-white font-semibold py-3 rounded-xl transition-colors shadow-sm shadow-emerald-200"
-                >
-                  {loading ? "Signing in..." : "Sign In"}
-                </button>
-              </form>
-            </>
-          ) : (
-            <>
-              <h2 className="text-xl font-bold text-slate-800 mb-2">Two-Factor Authentication</h2>
-              <p className="text-slate-500 text-sm mb-6">An OTP has been sent to your email. Please enter it below to verify your identity.</p>
-
-              <form onSubmit={handleMfaSubmit} className="space-y-5">
-                <div>
-                  <label className="block text-sm font-semibold text-slate-700 mb-1.5">One-Time Password (OTP)</label>
-                  <input
-                    type="text"
-                    value={otp}
-                    onChange={(e) => setOtp(e.target.value)}
-                    placeholder="Enter 6-digit OTP"
-                    required
-                    maxLength={6}
-                    className="w-full px-4 py-3 bg-emerald-50 border border-emerald-100 rounded-xl text-slate-800 placeholder-slate-400 text-center tracking-widest text-lg font-bold focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-transparent transition-all"
-                  />
-                </div>
-
-                {error && (
-                  <p className="text-sm text-rose-500 font-medium">{error}</p>
-                )}
-
-                <button
-                  type="submit"
-                  disabled={loading || otp.length < 6}
-                  className="w-full bg-emerald-500 hover:bg-emerald-600 disabled:opacity-60 text-white font-semibold py-3 rounded-xl transition-colors shadow-sm shadow-emerald-200"
-                >
-                  {loading ? "Verifying..." : "Verify Identity"}
-                </button>
-              </form>
-            </>
-          )}
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full bg-emerald-500 hover:bg-emerald-600 disabled:opacity-60 text-white font-semibold py-3 rounded-xl transition-colors shadow-sm shadow-emerald-200"
+            >
+              {loading ? "Signing in..." : "Sign In"}
+            </button>
+          </form>
         </div>
       </div>
     </div>
