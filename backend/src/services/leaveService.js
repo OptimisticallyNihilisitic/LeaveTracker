@@ -1,6 +1,13 @@
 import supabase from "../config/supabaseClient.js";
 import { sendLeaveApplicationEmail, sendLeaveApprovalEmail } from "./emailService.js";
 
+const STATUS = {
+  PENDING_MANAGER: "pending_manager",
+  PENDING_HR: "pending_hr",
+  APPROVED: "approved",
+  REJECTED: "rejected",
+};
+
 export const applyLeave = async ({ userId, leave_type, start_date, end_date, days, reason }) => {
   const { data: employee, error: empError } = await supabase
     .from("users")
@@ -10,7 +17,7 @@ export const applyLeave = async ({ userId, leave_type, start_date, end_date, day
 
   if (empError) throw new Error(empError.message);
 
-  if (!employee.manager_id && employee.role !== 'manager' && employee.role !== 'admin') {
+  if (!employee.manager_id && employee.role !== 'manager' && employee.role !== 'admin' && employee.role !== 'hr') {
     throw new Error("You cannot apply for a leave because no manager is assigned to you. Please contact admin.");
   }
 
@@ -18,7 +25,7 @@ export const applyLeave = async ({ userId, leave_type, start_date, end_date, day
     .from("leave_requests")
     .select("id")
     .eq("user_id", userId)
-    .in("status", ["pending", "approved"])
+    .in("status", [STATUS.PENDING_MANAGER, STATUS.PENDING_HR, STATUS.APPROVED])
     .lte("start_date", end_date)
     .gte("end_date", start_date);
 
@@ -35,7 +42,7 @@ export const applyLeave = async ({ userId, leave_type, start_date, end_date, day
       .select("days")
       .eq("user_id", userId)
       .eq("leave_type", leave_type)
-      .in("status", ["approved", "pending"]);
+      .in("status", [STATUS.APPROVED, STATUS.PENDING_MANAGER, STATUS.PENDING_HR]);
 
     if (existingLeavesError) throw new Error(existingLeavesError.message);
     
@@ -52,13 +59,18 @@ export const applyLeave = async ({ userId, leave_type, start_date, end_date, day
     }
   }
 
-  let initialStatus = 'pending';
+  let initialStatus = STATUS.PENDING_MANAGER;
   
+  // Admin: final approval immediately
   if (employee.role === 'admin') {
-    initialStatus = 'approved';
-  } else if (employee.role === 'manager' && !employee.manager_id) {
-    initialStatus = 'approved';
-  } else if (leave_type === 'sick') {
+    initialStatus = STATUS.APPROVED;
+  }
+  // Manager/HR without a manager: skip manager step -> go to HR approval
+  else if ((employee.role === 'manager' || employee.role === 'hr') && !employee.manager_id) {
+    initialStatus = STATUS.PENDING_HR;
+  }
+  // Sick leave validation still applies, but final approval is only after HR.
+  else if (leave_type === 'sick') {
     // 1. Date validation: must start today or tomorrow
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -71,8 +83,9 @@ export const applyLeave = async ({ userId, leave_type, start_date, end_date, day
     if (diffDays < 0 || diffDays > 1) {
       throw new Error("Sick leaves can only be applied for starting today or tomorrow.");
     }
-    
-    initialStatus = 'approved';
+
+    // Sick leave does not need manager action; it goes directly to HR.
+    initialStatus = STATUS.PENDING_HR;
   }
 
   const { data, error } = await supabase
@@ -94,8 +107,9 @@ export const applyLeave = async ({ userId, leave_type, start_date, end_date, day
 
   if (employee.manager_id) {
     const shouldNotify = 
-      initialStatus === 'pending' || 
-      (initialStatus === 'approved' && leave_type === 'sick');
+      initialStatus === STATUS.PENDING_MANAGER ||
+      // For sick leaves, we still send a notice to manager (even though HR finalizes).
+      (initialStatus === STATUS.PENDING_HR && leave_type === 'sick');
       
     if (shouldNotify) {
       const { data: manager } = await supabase
@@ -122,7 +136,7 @@ export const cancelLeave = async (leaveId, userId) => {
 
   if (fetchError || !existing) throw new Error("Leave request not found");
   if (existing.user_id !== userId) throw new Error("Forbidden");
-  if (existing.status !== "pending") throw new Error("Only pending leaves can be cancelled");
+  if (existing.status !== STATUS.PENDING_MANAGER) throw new Error("Only leaves pending manager approval can be cancelled");
 
   const { error } = await supabase
     .from("leave_requests")
@@ -175,18 +189,20 @@ export const reviewLeave = async ({ leaveId, managerId, status, comments }) => {
 
   const { data: existing, error: fetchError } = await supabase
     .from("leave_requests")
-    .select("id, status, manager_id, user_id, leave_type, start_date, end_date, days")
+    .select("id, status, manager_id, user_id, leave_type, start_date, end_date, days, reason, comments")
     .eq("id", leaveId)
     .single();
 
   if (fetchError || !existing) throw new Error("Leave request not found");
   if (existing.manager_id !== managerId) throw new Error("Forbidden");
-  if (existing.status !== "pending") throw new Error("Leave already reviewed");
+  if (existing.status !== STATUS.PENDING_MANAGER) throw new Error("Leave already reviewed");
+
+  const nextStatus = status === STATUS.APPROVED ? STATUS.PENDING_HR : STATUS.REJECTED;
 
   const { data, error } = await supabase
     .from("leave_requests")
     .update({
-      status,
+      status: nextStatus,
       comments,
       reviewed_by: managerId,
       reviewed_at: new Date().toISOString(),
@@ -197,15 +213,73 @@ export const reviewLeave = async ({ leaveId, managerId, status, comments }) => {
 
   if (error) throw error;
 
+  // Notify employee only on final rejection at manager stage.
+  if (nextStatus === STATUS.REJECTED) {
+    const { data: empUser } = await supabase.from("users").select("email").eq("id", existing.user_id).single();
+    const { data: managerUser } = await supabase.from("users").select("name").eq("id", managerId).single();
+
+    if (empUser?.email && managerUser?.name) {
+      const leaveDetails = { ...existing, comments: comments };
+      sendLeaveApprovalEmail(empUser.email, managerUser.name, STATUS.REJECTED, leaveDetails).catch(console.error);
+    }
+  }
+
+  return data;
+};
+
+export const getHrLeaves = async () => {
+  const { data, error } = await supabase
+    .from("leave_requests")
+    .select("*, users(name, email, employee_id)")
+    .eq("status", STATUS.PENDING_HR)
+    .order("applied_at", { ascending: false });
+
+  if (error) throw error;
+  return data;
+};
+
+export const hrReviewLeave = async ({ leaveId, status, comments }) => {
+  const { data: existing, error: fetchError } = await supabase
+    .from("leave_requests")
+    .select("id, status, user_id, leave_type, start_date, end_date, days, reason, comments, reviewed_by, reviewed_at")
+    .eq("id", leaveId)
+    .single();
+
+  if (fetchError || !existing) throw new Error("Leave request not found");
+  if (existing.status !== STATUS.PENDING_HR) throw new Error("Leave is not pending HR approval");
+
+  const finalStatus = status === STATUS.APPROVED ? STATUS.APPROVED : STATUS.REJECTED;
+  const mergedComments = (() => {
+    const hrLine = comments ? `HR: ${comments}` : null;
+    if (!existing.comments && !hrLine) return null;
+    if (!existing.comments) return hrLine;
+    if (!hrLine) return existing.comments;
+    return `${existing.comments}\n${hrLine}`;
+  })();
+
+  const { data, error } = await supabase
+    .from("leave_requests")
+    .update({
+      status: finalStatus,
+      comments: mergedComments,
+    })
+    .eq("id", leaveId)
+    .select()
+    .single();
+
+  if (error) throw error;
+
+  // HR decision is the final decision. Notify employee.
   const { data: empUser } = await supabase.from("users").select("email").eq("id", existing.user_id).single();
-  const { data: managerUser } = await supabase.from("users").select("name").eq("id", managerId).single();
-  
-  if (empUser?.email && managerUser?.name) {
-    const leaveDetails = {
-      ...existing,
-      comments: comments
-    };
-    sendLeaveApprovalEmail(empUser.email, managerUser.name, status, leaveDetails).catch(console.error);
+  let managerName = "HR";
+  if (existing.reviewed_by) {
+    const { data: managerUser } = await supabase.from("users").select("name").eq("id", existing.reviewed_by).single();
+    if (managerUser?.name) managerName = managerUser.name;
+  }
+
+  if (empUser?.email) {
+    const leaveDetails = { ...existing, comments: mergedComments };
+    sendLeaveApprovalEmail(empUser.email, managerName, finalStatus, leaveDetails).catch(console.error);
   }
 
   return data;

@@ -23,7 +23,7 @@ export const createUser = async (req, res) => {
       employee_id, name, email, role, manager_id,
       sick_leaves, casual_leaves, floater_leaves,
     });
-
+  
     res.status(201).json(data);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -141,9 +141,9 @@ export const createUserWithAuth = async (req, res) => {
       return res.status(400).json({ error: "Password must be at least 8 characters" });
     }
 
-    const validRoles = ["employee", "manager", "admin"];
+    const validRoles = ["employee", "manager", "hr", "admin"];
     if (role && !validRoles.includes(role)) {
-      return res.status(400).json({ error: "role must be employee, manager or admin" });
+      return res.status(400).json({ error: "role must be employee, manager, hr or admin" });
     }
 
     if (!email.endsWith("@test.com")) {
@@ -240,4 +240,4 @@ export const resendInvitation = async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
-};
+};

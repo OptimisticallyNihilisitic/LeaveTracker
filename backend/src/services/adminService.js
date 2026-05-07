@@ -2,7 +2,6 @@ import supabase from "../config/supabaseClient.js";
 import { sendInvitationEmail } from "./emailService.js";
 
 //Users
-
 export const getAllUsers = async () => {
   const { data, error } = await supabase
     .from("users")
@@ -32,9 +31,9 @@ export const updateUser = async (userId, updates) => {
     .select()
     .single();
 
-  if (error) throw error;edg
+  if (error) throw error;
   return data;
-};
+}; 
 
 export const deleteUser = async (userId) => {
   // Remove user as manager from any pending invitations to avoid foreign key violations
@@ -53,7 +52,6 @@ export const deleteUser = async (userId) => {
 };
 
 //Policies
-
 export const getPolicies = async () => {
   const { data, error } = await supabase
     .from("policies")
@@ -84,7 +82,6 @@ export const upsertPolicy = async ({ year, sick_leaves, casual_leaves, floater_l
 };
 
 //Holidays
-
 export const addHoliday = async ({ policy_id, name, date, is_floater }) => {
   const { data, error } = await supabase
     .from("holidays")

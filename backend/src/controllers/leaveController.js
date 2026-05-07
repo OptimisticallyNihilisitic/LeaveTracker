@@ -72,3 +72,32 @@ export const reviewLeave = async (req, res) => {
     res.status(status).json({ error: err.message });
   }
 };
+
+export const getHrLeaves = async (req, res) => {
+  try {
+    const data = await leaveService.getHrLeaves();
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+export const hrReviewLeave = async (req, res) => {
+  try {
+    const { status, comments } = req.body;
+
+    if (!status || !["approved", "rejected"].includes(status)) {
+      return res.status(400).json({ error: "status must be 'approved' or 'rejected'" });
+    }
+
+    const data = await leaveService.hrReviewLeave({
+      leaveId: req.params.id,
+      status,
+      comments,
+    });
+
+    res.json(data);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+};
