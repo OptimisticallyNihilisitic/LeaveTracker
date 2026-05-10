@@ -6,6 +6,7 @@ import ApplyLeave from "./pages/ApplyLeave";
 import Leaves from "./pages/Leaves";
 import HolidayCalendar from "./pages/HolidayCalendar";
 import LeaveApprovals from "./pages/LeaveApprovals";
+import HrApprovals from "./pages/HrApprovals";
 import AdminPanel from "./pages/AdminPanel";
 import ChangePassword from "./pages/ChangePassword";
 import InviteSetup from "./pages/InviteSetup";
@@ -15,7 +16,7 @@ import { useState, useEffect } from "react";
 
 type Page =
   | "dashboard" | "apply-leave" | "leaves"
-  | "holiday-calendar" | "leave-approvals"
+  | "holiday-calendar" | "leave-approvals" | "hr-approvals"
   | "admin-panel" | "change-password";
 
 function AppInner() {
@@ -40,8 +41,8 @@ function AppInner() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-100">
-        <p className="text-slate-500 text-sm font-medium">Loading...</p>
+      <div className="min-h-screen flex items-center justify-center bg-app">
+        <p className="text-muted text-sm font-medium">Loading...</p>
       </div>
     );
   }
@@ -53,6 +54,8 @@ function AppInner() {
   const handleNavigate = (page: string) => {
     // Guard manager-only pages
     if (page === "leave-approvals" && user.role !== "manager") return;
+    // Guard HR-only pages
+    if (page === "hr-approvals" && user.role !== "hr") return;
     // Guard admin-only pages
     if (page === "admin-panel" && user.role !== "admin") return;
     // Guard employee-only pages from admin
@@ -63,10 +66,11 @@ function AppInner() {
   const renderPage = () => {
     switch (activePage) {
       case "dashboard":             return <Dashboard />;
-      case "apply-leave":           return (user.role === "employee" || user.role === "manager") ? <ApplyLeave /> : <Dashboard />;
+      case "apply-leave":           return (user.role === "employee" || user.role === "manager" || user.role === "hr") ? <ApplyLeave /> : <Dashboard />;
       case "leaves":                return <Leaves />;
       case "holiday-calendar":      return <HolidayCalendar />;
       case "leave-approvals":       return user.role === "manager" ? <LeaveApprovals /> : <Dashboard />;
+      case "hr-approvals":          return user.role === "hr" ? <HrApprovals /> : <Dashboard />;
       case "admin-panel":           return user.role === "admin" ? <AdminPanel /> : <Dashboard />;
       case "change-password":       return <ChangePassword />;
       default:                      return <Dashboard />;

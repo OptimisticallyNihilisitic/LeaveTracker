@@ -81,6 +81,8 @@ export const acceptInvitation = async (req, res) => {
 
     const userId = authData.user.id;
 
+    const normalizedRole = (inv.role ?? "employee").toLowerCase();
+
     // 4. Create User Record in Database
     const { error: dbError } = await supabase
       .from("users")
@@ -89,7 +91,7 @@ export const acceptInvitation = async (req, res) => {
         email: inv.email,
         name: inv.name,
         employee_id: inv.employee_id,
-        role: inv.role,
+        role: normalizedRole,
         manager_id: inv.manager_id,
         sick_leaves: defaultPolicy.sick_leaves,
         casual_leaves: defaultPolicy.casual_leaves,
@@ -99,7 +101,10 @@ export const acceptInvitation = async (req, res) => {
     if (dbError) {
       // Revert user if DB fails
       await supabase.auth.admin.deleteUser(userId);
-      return res.status(500).json({ error: "Failed to create user record." });
+      return res.status(500).json({
+        error: dbError.message,
+        details: { role: normalizedRole },
+      });
     }
 
     // 5. Update invitation status

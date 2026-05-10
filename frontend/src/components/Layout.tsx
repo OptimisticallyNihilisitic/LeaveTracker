@@ -28,6 +28,17 @@ const managerNav: NavItem[] = [
   { kind: "link", label: "Change Password", page: "change-password" },
 ];
 
+const hrNav: NavItem[] = [
+  { kind: "section", label: "Overview" },
+  { kind: "link", label: "Dashboard", page: "dashboard" },
+  { kind: "section", label: "Leave Management" },
+  { kind: "link", label: "HR Approvals", page: "hr-approvals" },
+  { kind: "link", label: "Leaves", page: "leaves" },
+  { kind: "link", label: "Holiday Calendar", page: "holiday-calendar" },
+  { kind: "section", label: "Account" },
+  { kind: "link", label: "Change Password", page: "change-password" },
+];
+
 const adminNav: NavItem[] = [
   { kind: "section", label: "Administration" },
   { kind: "link", label: "Admin Panel", page: "admin-panel" },
@@ -45,31 +56,32 @@ export default function Layout({ currentPage, onNavigate, children }: LayoutProp
   const { user, logout } = useAuth();
 
   const navItems =
-    user?.role === "admin" ? adminNav
+    user?.role === "admin"   ? adminNav
     : user?.role === "manager" ? managerNav
+    : user?.role === "hr"      ? hrNav
     : employeeNav;
 
 
 
   return (
-    <div className="min-h-screen bg-slate-100 flex font-sans">
-      <aside className="w-56 bg-white border-r border-slate-200 flex flex-col shadow-sm shrink-0">
-        <div className="px-5 py-5 border-b border-slate-100">
-          <p className="font-semibold text-slate-800 text-sm">{user?.name ?? "—"}</p>
-          <p className="text-xs text-emerald-600 font-medium mt-0.5">{user?.email ?? ""}</p>
+    <div className="min-h-screen bg-app flex font-sans">
+      <aside className="w-64 bg-surface border-r border-border flex flex-col shadow-soft shrink-0">
+        <div className="px-5 py-5 border-b border-white/5">
+          <p className="font-semibold text-fg text-sm">{user?.name ?? "—"}</p>
+          <p className="text-xs text-muted font-medium mt-0.5">{user?.email ?? ""}</p>
           
         </div>
 
         <nav className="flex-1 px-3 py-4 space-y-0.5">
           {navItems.map((item, i) => {
             if (item.kind === "section") {
-              return <p key={i} className="text-[10px] font-bold uppercase tracking-widest text-slate-400 px-2 pt-4 pb-1 first:pt-1">{item.label}</p>;
+              return <p key={i} className="text-[10px] font-bold uppercase tracking-widest text-muted/70 px-2 pt-4 pb-1 first:pt-1">{item.label}</p>;
             }
             const isActive = currentPage === item.page;
             return (
               <button key={i} onClick={() => onNavigate(item.page)}
-                className={`w-full text-left text-sm px-3 py-2 rounded-lg transition-all duration-150 font-medium ${
-                  isActive ? "bg-emerald-500 text-white shadow-sm shadow-emerald-200" : "text-slate-600 hover:bg-slate-50 hover:text-slate-800"
+                className={`w-full text-left text-sm px-3 py-2.5 rounded-xl transition-all duration-150 font-medium ${
+                  isActive ? "bg-accent text-white shadow-soft-sm shadow-black/35 ring-1 ring-white/10" : "text-fg/80 hover:bg-white/5 hover:text-fg"
                 }`}>
                 {item.label}
               </button>
@@ -79,17 +91,17 @@ export default function Layout({ currentPage, onNavigate, children }: LayoutProp
       </aside>
 
       <div className="flex-1 flex flex-col min-h-screen">
-        <header className="bg-white border-b border-slate-200 px-8 py-3.5 flex items-center justify-between shadow-sm">
+        <header className="bg-surface border-b border-border px-8 py-3.5 flex items-center justify-between shadow-soft-sm shadow-black/30">
           <div className="flex items-center gap-3">
             {currentPage === "dashboard" && (
               <button onClick={() => onNavigate("apply-leave")}
-                className="flex items-center gap-1.5 bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors shadow-sm">
+                className="app-btn-primary">
                 <span className="text-lg leading-none">+</span> Apply leave
               </button>
             )}
           </div>
           <button onClick={logout}
-            className="text-sm font-semibold text-rose-500 hover:text-rose-600 border border-rose-200 hover:border-rose-300 px-4 py-1.5 rounded-lg transition-colors">
+            className="app-btn-danger px-4 py-2 rounded-xl">
             Logout
           </button>
         </header>

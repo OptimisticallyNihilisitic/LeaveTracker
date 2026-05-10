@@ -15,13 +15,14 @@ interface UserRecord {
   name: string;
   email: string;
   employee_id: string;
-  role: "employee" | "manager" | "admin";
+  role: "employee" | "manager" | "hr" | "admin";
   manager_id: string | null;
 }
 
 const ROLE_STYLES: Record<string, string> = {
   employee: "bg-emerald-100 text-emerald-700",
   manager:  "bg-blue-100 text-blue-700",
+  hr:       "bg-fuchsia-100 text-fuchsia-700",
   admin:    "bg-violet-100 text-violet-700",
 };
 
@@ -37,7 +38,7 @@ export default function AdminPanel() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [userForm, setUserForm] = useState({
     name: "", email: "", employee_id: "", password: "",
-    role: "employee" as "employee" | "manager" | "admin",
+    role: "employee" as "employee" | "manager" | "hr" | "admin",
     manager_id: "",
   });
   const [userFormLoading, setUserFormLoading] = useState(false);
@@ -47,7 +48,7 @@ export default function AdminPanel() {
   const [invitationsLoading, setInvitationsLoading] = useState(true);
   const [showInviteForm, setShowInviteForm] = useState(false);
   const [inviteForm, setInviteForm] = useState({
-    name: "", email: "", employee_id: "", role: "employee" as "employee"|"manager"|"admin", manager_id: ""
+    name: "", email: "", employee_id: "", role: "employee" as "employee" | "manager" | "hr" | "admin", manager_id: ""
   });
   const [inviteFormLoading, setInviteFormLoading] = useState(false);
 
@@ -297,7 +298,7 @@ export default function AdminPanel() {
     { key: "holidays",    label: "Holidays" },
   ];
 
-  const managerOptions = users.filter((u) => u.role === "manager" || u.role === "admin");
+  const managerOptions = users.filter((u) => u.role === "manager" || u.role === "hr" || u.role === "admin");
 
   return (
     <div className="space-y-6 max-w-5xl">
@@ -365,6 +366,7 @@ export default function AdminPanel() {
                     className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white appearance-none">
                     <option value="employee">Employee</option>
                     <option value="manager">Manager</option>
+                    <option value="hr">HR</option>
                     <option value="admin">Admin</option>
                   </select>
                 </div>
@@ -466,6 +468,7 @@ export default function AdminPanel() {
                     className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white appearance-none">
                     <option value="employee">Employee</option>
                     <option value="manager">Manager</option>
+                    <option value="hr">HR</option>
                     <option value="admin">Admin</option>
                   </select>
                 </div>
@@ -591,6 +594,7 @@ export default function AdminPanel() {
                           className={`px-3 py-1 border border-slate-200 rounded-lg text-xs font-bold uppercase transition-colors cursor-pointer appearance-none ${ROLE_STYLES[currentRole]}`}>
                           <option value="employee" className="bg-white text-slate-800">EMPLOYEE</option>
                           <option value="manager" className="bg-white text-slate-800">MANAGER</option>
+                          <option value="hr" className="bg-white text-slate-800">HR</option>
                           <option value="admin" className="bg-white text-slate-800">ADMIN</option>
                         </select>
                       </td>
@@ -614,7 +618,7 @@ export default function AdminPanel() {
                           className="px-3 py-2 border border-slate-200 rounded-xl text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white appearance-none">
                           <option value="">No manager</option>
                           {users
-                            .filter((m) => m.id !== u.id) 
+                            .filter((m) => m.id !== u.id && (m.role === "manager" || m.role === "hr" || m.role === "admin"))
                             .map((m) => (
                               <option key={m.id} value={m.id}>{m.name} ({m.role})</option>
                             ))}

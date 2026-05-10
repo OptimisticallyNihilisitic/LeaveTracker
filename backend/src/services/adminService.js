@@ -13,9 +13,14 @@ export const getAllUsers = async () => {
 };
 
 export const createUser = async (userData) => {
+  const payload = {
+    ...userData,
+    ...(userData?.role ? { role: String(userData.role).toLowerCase() } : null),
+  };
+
   const { data, error } = await supabase
     .from("users")
-    .insert(userData)
+    .insert(payload)
     .select()
     .single();
 
@@ -151,6 +156,7 @@ export const createUserWithAuth = async ({ email, password, name, employee_id, r
 
   const userId = authData.user.id;
 
+  const normalizedRole = (role ?? "employee").toLowerCase();
  
   const currentYear = new Date().getFullYear();
   let defaultPolicy = { sick_leaves: 0, casual_leaves: 0, floater_leaves: 0 };
@@ -174,6 +180,18 @@ export const createUserWithAuth = async ({ email, password, name, employee_id, r
   }
 
  
+  if (manager_id) {
+    const { data: mgr, error: mgrError } = await supabase
+      .from("users")
+      .select("role")
+      .eq("id", manager_id)
+      .single();
+    if (mgrError || !mgr) throw new Error("Assigned manager not found");
+    if (!['manager', 'hr', 'admin'].includes(mgr.role)) {
+      throw new Error("Reporting manager must have the Manager, HR, or Admin role");
+    }
+  }
+
   const { data, error } = await supabase
     .from("users")
     .insert({
@@ -181,7 +199,7 @@ export const createUserWithAuth = async ({ email, password, name, employee_id, r
       email,
       name,
       employee_id,
-      role: role ?? "employee",
+      role: normalizedRole,
       manager_id: manager_id ?? null,
       sick_leaves: defaultPolicy.sick_leaves,
       casual_leaves: defaultPolicy.casual_leaves,
@@ -222,6 +240,18 @@ export const assignManager = async (userId, managerId) => {
   
   if (userId === managerId) throw new Error("A user cannot be their own manager");
 
+  if (managerId) {
+    const { data: mgr, error: mgrError } = await supabase
+      .from("users")
+      .select("role")
+      .eq("id", managerId)
+      .single();
+    if (mgrError || !mgr) throw new Error("Assigned manager not found");
+    if (!['manager', 'hr', 'admin'].includes(mgr.role)) {
+      throw new Error("Reporting manager must have the Manager, HR, or Admin role");
+    }
+  }
+
   const { data, error } = await supabase
     .from("users")
     .update({ manager_id: managerId ?? null, updated_at: new Date().toISOString() })
@@ -254,7 +284,12 @@ export const createInvitation = async ({ email, name, employee_id, role, manager
   const { data, error } = await supabase
     .from("invitations")
     .insert({
-      email, name, employee_id, role: role || 'employee', manager_id: manager_id || null, status: 'pending'
+      email,
+      name,
+      employee_id,
+      role: String(role || "employee").toLowerCase(),
+      manager_id: manager_id || null,
+      status: "pending",
     })
     .select()
     .single();

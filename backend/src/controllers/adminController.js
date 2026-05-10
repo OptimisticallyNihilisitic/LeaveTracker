@@ -208,6 +208,11 @@ export const createInvitation = async (req, res) => {
       return res.status(400).json({ error: "Email must end with @test.com (company specific domain)" });
     }
 
+    const validRoles = ["employee", "manager", "hr", "admin"];
+    if (role && !validRoles.includes(role)) {
+      return res.status(400).json({ error: "role must be employee, manager, hr or admin" });
+    }
+
     const data = await adminService.createInvitation({ email, name, employee_id, role, manager_id });
     res.status(201).json(data);
   } catch (err) {

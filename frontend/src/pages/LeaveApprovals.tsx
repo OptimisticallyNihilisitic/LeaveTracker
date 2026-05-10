@@ -2,10 +2,11 @@ import { useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { getTeamLeaves, reviewLeave } from "../api/leave";
 
-type LeaveStatus = "pending" | "approved" | "rejected";
+type LeaveStatus = "pending_manager" | "pending_hr" | "approved" | "rejected";
 
 const STATUS_STYLES: Record<LeaveStatus, string> = {
-  pending: "bg-amber-100 text-amber-700",
+  pending_manager: "bg-amber-100 text-amber-700",
+  pending_hr: "bg-fuchsia-100 text-fuchsia-700",
   approved: "bg-emerald-100 text-emerald-700",
   rejected: "bg-rose-100 text-rose-600",
 };
@@ -60,12 +61,13 @@ export default function LeaveApprovals() {
 
   const counts = {
     all: requests.length,
-    pending: requests.filter((r) => r.status === "pending").length,
+    pending_manager: requests.filter((r) => r.status === "pending_manager").length,
+    pending_hr: requests.filter((r) => r.status === "pending_hr").length,
     approved: requests.filter((r) => r.status === "approved").length,
     rejected: requests.filter((r) => r.status === "rejected").length,
   };
 
-  const filterTabs: FilterStatus[] = ["all", "pending", "approved", "rejected"];
+  const filterTabs: FilterStatus[] = ["all", "pending_manager", "pending_hr", "approved", "rejected"];
   const formatDate = (d: string) => new Date(d).toLocaleDateString("en-IN", { day: "numeric", month: "short" });
 
   return (
@@ -76,16 +78,22 @@ export default function LeaveApprovals() {
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {(["pending", "approved", "rejected"] as LeaveStatus[]).map((s) => (
+        {(["pending_manager", "pending_hr", "approved", "rejected"] as LeaveStatus[]).map((s) => (
           <div key={s} onClick={() => setFilter(filter === s ? "all" : s)}
             className={`rounded-2xl border p-5 cursor-pointer transition-all ${
               filter === s
-                ? s === "pending" ? "bg-amber-50 border-amber-300 shadow-sm"
+                ? s === "pending_manager" ? "bg-amber-50 border-amber-300 shadow-sm"
+                  : s === "pending_hr" ? "bg-fuchsia-50 border-fuchsia-300 shadow-sm"
                   : s === "approved" ? "bg-emerald-50 border-emerald-300 shadow-sm"
                   : "bg-rose-50 border-rose-300 shadow-sm"
                 : "bg-white border-slate-200 hover:border-slate-300"
             }`}>
-            <p className={`text-sm font-semibold capitalize ${s === "pending" ? "text-amber-600" : s === "approved" ? "text-emerald-600" : "text-rose-500"}`}>{s}</p>
+            <p className={`text-sm font-semibold capitalize ${
+              s === "pending_manager" ? "text-amber-600"
+                : s === "pending_hr" ? "text-fuchsia-600"
+                : s === "approved" ? "text-emerald-600"
+                : "text-rose-500"
+            }`}>{s.replace("_", " ")}</p>
             <p className="text-3xl font-bold text-slate-800 mt-1">{counts[s]}</p>
             <p className="text-xs text-slate-400 mt-0.5">requests</p>
           </div>
@@ -103,7 +111,7 @@ export default function LeaveApprovals() {
           {filterTabs.map((tab) => (
             <button key={tab} onClick={() => setFilter(tab)}
               className={`px-4 py-1.5 rounded-lg text-sm font-semibold capitalize transition-all ${filter === tab ? "bg-white text-slate-800 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}>
-              {tab}
+              {tab === "all" ? "all" : tab.replace("_", " ")}
               <span className={`ml-1.5 text-xs px-1.5 py-0.5 rounded-full ${filter === tab ? "bg-slate-100 text-slate-600" : "bg-slate-200 text-slate-500"}`}>
                 {counts[tab]}
               </span>
@@ -153,10 +161,12 @@ export default function LeaveApprovals() {
                   <td className="px-5 py-4 text-slate-600 max-w-[160px] truncate">{req.reason ?? "—"}</td>
                   <td className="px-5 py-4 text-slate-500 whitespace-nowrap">{formatDate(req.applied_at)}</td>
                   <td className="px-5 py-4">
-                    <span className={`text-xs font-semibold px-2.5 py-1 rounded-full capitalize ${STATUS_STYLES[req.status as LeaveStatus]}`}>{req.status}</span>
+                    <span className={`text-xs font-semibold px-2.5 py-1 rounded-full capitalize ${STATUS_STYLES[req.status as LeaveStatus]}`}>
+                      {String(req.status).replace("_", " ")}
+                    </span>
                   </td>
                   <td className="px-5 py-4">
-                    {req.status === "pending" ? (
+                    {req.status === "pending_manager" ? (
                       <div className="flex gap-2">
                         <button onClick={() => setConfirmModal({ id: req.id, action: "approved" })}
                           className="text-xs font-semibold text-emerald-600 hover:text-white bg-emerald-50 hover:bg-emerald-500 border border-emerald-200 hover:border-emerald-500 px-3 py-1.5 rounded-lg transition-all">

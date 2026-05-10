@@ -92,6 +92,7 @@ export const hrReviewLeave = async (req, res) => {
 
     const data = await leaveService.hrReviewLeave({
       leaveId: req.params.id,
+      hrId: req.user.id,
       status,
       comments,
     });

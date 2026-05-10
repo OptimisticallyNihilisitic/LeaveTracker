@@ -66,7 +66,9 @@ export default function ApplyLeave() {
     const end = new Date(to);
 
     // Filter active leaves for overlap checking
-    const activeLeaves = leaves.filter((l) => l.status === "approved" || l.status === "pending");
+    const activeLeaves = leaves.filter(
+      (l) => l.status === "approved" || l.status === "pending_manager" || l.status === "pending_hr"
+    );
 
     if (start <= end) {
       // Check for overlapping existing active leaves

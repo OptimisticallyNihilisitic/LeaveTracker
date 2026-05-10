@@ -1,14 +1,12 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
 import { getMe } from "../api/user";
-import { getDeviceId } from "../lib/device";
-import { apiFetch } from "../api/apiFetch";
 
 interface UserProfile {
   id: string;
   name: string;
   email: string;
-  role: "employee" | "manager" | "admin";
+  role: "employee" | "manager" | "hr" | "admin";
   manager_id: string | null;
   sick_leaves: number;
   casual_leaves: number;

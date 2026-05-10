@@ -26,7 +26,7 @@ export default function Dashboard() {
       .finally(() => setLoading(false));
   }, [token]);
 
-  const pendingLeaves = leaves.filter((l) => l.status === "pending");
+  const pendingLeaves = leaves.filter((l) => l.status === "pending_manager" || l.status === "pending_hr");
   const takenThisMonth = leaves.filter((l) => {
     const d = new Date(l.start_date);
     const now = new Date();

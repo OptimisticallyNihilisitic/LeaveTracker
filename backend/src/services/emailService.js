@@ -100,6 +100,34 @@ If you have any questions, please contact your administrator.`;
   }
 };
 
+export const sendLeaveToHrEmail = async (hrEmails, employeeName, leaveDetails) => {
+  if (!hrEmails || hrEmails.length === 0) return;
+
+  const subject = `Leave Pending HR Approval — ${employeeName}`;
+  const text = `A leave request from ${employeeName} is awaiting HR approval.
+
+Type: ${leaveDetails.leave_type}
+Dates: ${leaveDetails.start_date} to ${leaveDetails.end_date}
+Days: ${leaveDetails.days}
+Reason: ${leaveDetails.reason}
+
+Please log in to the portal to review and approve or reject this request.`;
+
+  for (const hrEmail of hrEmails) {
+    const to = getTestEmailAlias(hrEmail);
+    try {
+      if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
+        await transporter.sendMail({ from: process.env.EMAIL_USER, to, subject, text });
+        console.log(`Email sent to ${to} (HR)`);
+      } else {
+        console.log(`[Email Mock] To: ${to} (HR) | Subject: ${subject}`);
+      }
+    } catch (error) {
+      console.error(`Error sending HR notification email to ${to}:`, error);
+    }
+  }
+};
+
 export const sendOtpEmail = async (email, otp, purpose) => {
   if (!email) return;
   const to = getTestEmailAlias(email);

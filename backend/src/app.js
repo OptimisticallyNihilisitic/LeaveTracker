@@ -8,11 +8,17 @@ import inviteRoutes from "./routes/inviteRoutes.js";
 
 const app = express();
 
-app.use(cors({
-  origin: ["https://leavetracktool.netlify.app", "http://localhost:5173", "http://localhost:3000"],
+const corsOptions = {
+  origin: [
+    "https://leavetracktool.netlify.app",
+    /^http:\/\/localhost:\d+$/,
+  ],
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
-  credentials: true
-}));
+  credentials: true,
+};
+
+app.use(cors(corsOptions));
+app.options(/.*/, cors(corsOptions));
 
 app.use(express.json());
 

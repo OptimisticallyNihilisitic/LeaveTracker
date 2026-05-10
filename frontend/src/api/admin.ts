@@ -27,7 +27,7 @@ export const createUser = (token: string, body: {
   password: string;
   name: string;
   employee_id: string;
-  role?: "employee" | "manager" | "admin";
+  role?: "employee" | "manager" | "hr" | "admin";
   manager_id?: string | null;
 }) => apiFetch<UserProfile>("/api/admin/users", token, { method: "POST", body: JSON.stringify(body) });
 
@@ -55,7 +55,7 @@ export interface InvitationRecord {
   email: string;
   name: string;
   employee_id: string;
-  role: "employee" | "manager" | "admin";
+  role: "employee" | "manager" | "hr" | "admin";
   manager_id: string | null;
   status: "pending" | "accepted" | "cancelled";
   token: string;
@@ -70,7 +70,7 @@ export const createInvitation = (token: string, body: {
   email: string;
   name: string;
   employee_id: string;
-  role?: "employee" | "manager" | "admin";
+  role?: "employee" | "manager" | "hr" | "admin";
   manager_id?: string | null;
 }) => apiFetch<InvitationRecord>("/api/admin/invitations", token, { method: "POST", body: JSON.stringify(body) });
 
@@ -78,4 +78,4 @@ export const cancelInvitation = (token: string, id: string) =>
   apiFetch<InvitationRecord>(`/api/admin/invitations/${id}/cancel`, token, { method: "PATCH" });
 
 export const resendInvitation = (token: string, id: string) =>
-  apiFetch<InvitationRecord>(`/api/admin/invitations/${id}/resend`, token, { method: "POST" });
+  apiFetch<InvitationRecord>(`/api/admin/invitations/${id}/resend`, token, { method: "POST" });

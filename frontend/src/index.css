@@ -8,7 +8,77 @@
   }
 
   body {
-    @apply text-slate-800 antialiased;
+    @apply bg-app text-fg antialiased;
     font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  }
+}
+
+:root {
+  --app-bg: 10 12 16;          /* near-black */
+  --app-surface: 15 18 24;     /* elevated */
+  --app-surface-2: 19 23 31;   /* elevated-2 */
+  --app-border: 34 41 55;      /* slate-700-ish */
+  --app-fg: 226 232 240;       /* slate-200 */
+  --app-muted: 148 163 184;    /* slate-400 */
+
+  /* orange accents */
+  --app-accent: 249 115 22;    /* orange-500 */
+  --app-accent-2: 251 146 60;  /* orange-400 */
+
+  --app-danger: 244 63 94;     /* rose-500 */
+  --app-warn: 245 158 11;      /* amber-500 */
+  --app-success: 34 197 94;    /* green-500 */
+}
+
+@layer components {
+  .app-card {
+    @apply rounded-2xl border border-border bg-surface shadow-soft-sm shadow-black/40 ring-1 ring-white/5;
+  }
+
+  .app-card-header {
+    @apply text-sm font-semibold text-fg/90;
+  }
+
+  .app-input {
+    @apply w-full rounded-xl border border-border bg-surface-2 px-4 py-3 text-sm text-fg placeholder:text-muted/70
+      focus:outline-none focus:ring-2 focus:ring-accent/50 focus:border-transparent transition;
+  }
+
+  .app-select {
+    @apply w-full appearance-none rounded-xl border border-border bg-surface-2 px-4 py-3 text-sm text-fg
+      focus:outline-none focus:ring-2 focus:ring-accent/50 focus:border-transparent transition;
+  }
+
+  .app-btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition
+      focus:outline-none focus:ring-2 focus:ring-accent/40 disabled:opacity-60;
+  }
+
+  .app-btn-primary {
+    @apply app-btn bg-accent text-white hover:bg-accent-2 shadow-soft-sm shadow-black/35;
+  }
+
+  .app-btn-ghost {
+    @apply app-btn bg-transparent text-fg/90 hover:bg-white/5 border border-border;
+  }
+
+  .app-btn-danger {
+    @apply app-btn bg-transparent text-danger hover:bg-danger/10 border border-danger/40;
+  }
+
+  .app-table {
+    @apply w-full text-sm;
+  }
+
+  .app-th {
+    @apply text-left px-5 py-3 text-[11px] font-bold uppercase tracking-wider text-muted border-b border-border bg-white/5;
+  }
+
+  .app-td {
+    @apply px-5 py-4 border-b border-white/5 text-fg/90;
+  }
+
+  .app-row {
+    @apply hover:bg-white/5 transition-colors;
   }
 }

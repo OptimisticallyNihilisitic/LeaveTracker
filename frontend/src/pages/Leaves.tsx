@@ -4,13 +4,18 @@ import { getMyLeaves, cancelLeave } from "../api/leave";
 
 const StatusBadge = ({ status }: { status: string }) => {
   const styles: Record<string, string> = {
-    pending: "bg-amber-100 text-amber-700",
+    pending_manager: "bg-amber-100 text-amber-700",
+    pending_hr: "bg-fuchsia-100 text-fuchsia-700",
     approved: "bg-emerald-100 text-emerald-700",
     rejected: "bg-rose-100 text-rose-600",
   };
+  const label =
+    status === "pending_manager" ? "Pending (Manager)" :
+    status === "pending_hr" ? "Pending (HR)" :
+    status;
   return (
     <span className={`text-xs font-semibold px-2.5 py-1 rounded-full capitalize ${styles[status] ?? "bg-slate-100 text-slate-500"}`}>
-      {status}
+      {label}
     </span>
   );
 };
@@ -40,8 +45,8 @@ export default function Leaves() {
     }
   };
 
-  const pending = leaves.filter((l) => l.status === "pending");
-  const history = leaves.filter((l) => l.status !== "pending");
+  const pending = leaves.filter((l) => l.status === "pending_manager" || l.status === "pending_hr");
+  const history = leaves.filter((l) => l.status !== "pending_manager" && l.status !== "pending_hr");
 
   const formatDate = (d: string) => new Date(d).toLocaleDateString("en-IN", { day: "numeric", month: "short" });
 
@@ -73,10 +78,14 @@ export default function Leaves() {
                   <td className="px-5 py-4 text-slate-500">{formatDate(l.applied_at)}</td>
                   <td className="px-5 py-4"><StatusBadge status={l.status} /></td>
                   <td className="px-5 py-4">
-                    <button onClick={() => handleCancel(l.id)} disabled={cancelling === l.id}
-                      className="text-xs font-semibold text-rose-500 hover:text-rose-600 border border-rose-200 hover:border-rose-300 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50">
-                      {cancelling === l.id ? "..." : "Withdraw"}
-                    </button>
+                    {(l.status === "pending_manager" || l.status === "pending_hr") ? (
+                      <button onClick={() => handleCancel(l.id)} disabled={cancelling === l.id}
+                        className="text-xs font-semibold text-rose-500 hover:text-rose-600 border border-rose-200 hover:border-rose-300 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50">
+                        {cancelling === l.id ? "..." : "Withdraw"}
+                      </button>
+                    ) : (
+                      <span className="text-xs text-slate-400">—</span>
+                    )}
                   </td>
                 </tr>
               ))}

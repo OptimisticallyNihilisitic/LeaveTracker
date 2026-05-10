@@ -3,7 +3,7 @@ export interface UserProfile {
   employee_id: string;
   name: string;
   email: string;
-  role: "employee" | "manager" | "admin";
+  role: "employee" | "manager" | "hr" | "admin";
   manager_id: string | null;
   sick_leaves: number;
   casual_leaves: number;
@@ -37,7 +37,7 @@ export interface LeaveRequest {
   end_date: string;
   days: number;
   reason: string;
-  status: "pending" | "approved" | "rejected";
+  status: "pending_manager" | "pending_hr" | "approved" | "rejected";
   applied_at: string;
   reviewed_at: string | null;
   reviewed_by: string | null;

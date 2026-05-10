@@ -1,11 +1,21 @@
 import supabase from "../config/supabaseClient.js";
-import { sendLeaveApplicationEmail, sendLeaveApprovalEmail } from "./emailService.js";
+import { sendLeaveApplicationEmail, sendLeaveApprovalEmail, sendLeaveToHrEmail } from "./emailService.js";
 
 const STATUS = {
   PENDING_MANAGER: "pending_manager",
   PENDING_HR: "pending_hr",
   APPROVED: "approved",
   REJECTED: "rejected",
+};
+
+// Helper: fetch all HR user emails
+const getAllHrEmails = async () => {
+  const { data, error } = await supabase
+    .from("users")
+    .select("email")
+    .eq("role", "hr");
+  if (error) return [];
+  return data.map((u) => u.email).filter(Boolean);
 };
 
 export const applyLeave = async ({ userId, leave_type, start_date, end_date, days, reason }) => {
@@ -17,10 +27,7 @@ export const applyLeave = async ({ userId, leave_type, start_date, end_date, day
 
   if (empError) throw new Error(empError.message);
 
-  if (!employee.manager_id && employee.role !== 'manager' && employee.role !== 'admin' && employee.role !== 'hr') {
-    throw new Error("You cannot apply for a leave because no manager is assigned to you. Please contact admin.");
-  }
-
+  // Overlap check
   const { data: overlappingLeaves, error: overlapError } = await supabase
     .from("leave_requests")
     .select("id")
@@ -34,8 +41,12 @@ export const applyLeave = async ({ userId, leave_type, start_date, end_date, day
     throw new Error("You already have an active leave request during the selected dates.");
   }
 
-  const balanceField = leave_type === "sick" ? "sick_leaves" : leave_type === "casual" ? "casual_leaves" : leave_type === "floater" ? "floater_leaves" : null;
-  
+  // Balance check
+  const balanceField =
+    leave_type === "sick" ? "sick_leaves" :
+    leave_type === "casual" ? "casual_leaves" :
+    leave_type === "floater" ? "floater_leaves" : null;
+
   if (balanceField) {
     const { data: existingLeaves, error: existingLeavesError } = await supabase
       .from("leave_requests")
@@ -45,46 +56,29 @@ export const applyLeave = async ({ userId, leave_type, start_date, end_date, day
       .in("status", [STATUS.APPROVED, STATUS.PENDING_MANAGER, STATUS.PENDING_HR]);
 
     if (existingLeavesError) throw new Error(existingLeavesError.message);
-    
+
     const consumedLeaves = existingLeaves ? existingLeaves.reduce((acc, l) => acc + (l.days || 0), 0) : 0;
     const availableBalance = employee[balanceField] ?? 0;
 
     if (availableBalance < days) {
       const displayType = leave_type.charAt(0).toUpperCase() + leave_type.slice(1);
       throw new Error(`Insufficient balance. You only have ${availableBalance} ${displayType} Leave(s) left.`);
-    }
-    else if (availableBalance - consumedLeaves < days) {
+    } else if (availableBalance - consumedLeaves < days) {
       const displayType = leave_type.charAt(0).toUpperCase() + leave_type.slice(1);
       throw new Error(`Insufficient balance. You only have ${availableBalance - consumedLeaves} ${displayType} Leave(s) left. Cancel other pending requests.`);
     }
   }
 
-  let initialStatus = STATUS.PENDING_MANAGER;
-  
-  // Admin: final approval immediately
-  if (employee.role === 'admin') {
+  // Determine initial status:
+  // - admin           → approved immediately
+  // - has manager_id  → pending_manager
+  // - no manager_id   → pending_hr (goes directly to all HRs)
+  let initialStatus;
+  if (employee.role === "admin") {
     initialStatus = STATUS.APPROVED;
-  }
-  // Manager/HR without a manager: skip manager step -> go to HR approval
-  else if ((employee.role === 'manager' || employee.role === 'hr') && !employee.manager_id) {
-    initialStatus = STATUS.PENDING_HR;
-  }
-  // Sick leave validation still applies, but final approval is only after HR.
-  else if (leave_type === 'sick') {
-    // 1. Date validation: must start today or tomorrow
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const requestStart = new Date(start_date);
-    requestStart.setHours(0, 0, 0, 0);
-    
-    const diffTime = requestStart.getTime() - today.getTime();
-    const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
-    
-    if (diffDays < 0 || diffDays > 1) {
-      throw new Error("Sick leaves can only be applied for starting today or tomorrow.");
-    }
-
-    // Sick leave does not need manager action; it goes directly to HR.
+  } else if (employee.manager_id) {
+    initialStatus = STATUS.PENDING_MANAGER;
+  } else {
     initialStatus = STATUS.PENDING_HR;
   }
 
@@ -105,23 +99,22 @@ export const applyLeave = async ({ userId, leave_type, start_date, end_date, day
 
   if (error) throw error;
 
-  if (employee.manager_id) {
-    const shouldNotify = 
-      initialStatus === STATUS.PENDING_MANAGER ||
-      // For sick leaves, we still send a notice to manager (even though HR finalizes).
-      (initialStatus === STATUS.PENDING_HR && leave_type === 'sick');
-      
-    if (shouldNotify) {
-      const { data: manager } = await supabase
-        .from("users")
-        .select("email")
-        .eq("id", employee.manager_id)
-        .single();
-        
-      if (manager?.email) {
-        sendLeaveApplicationEmail(manager.email, employee.name, data).catch(console.error);
-      }
+  // Notifications
+  if (initialStatus === STATUS.PENDING_MANAGER && employee.manager_id) {
+    // Notify the assigned manager
+    const { data: manager } = await supabase
+      .from("users")
+      .select("email")
+      .eq("id", employee.manager_id)
+      .single();
+
+    if (manager?.email) {
+      sendLeaveApplicationEmail(manager.email, employee.name, data).catch(console.error);
     }
+  } else if (initialStatus === STATUS.PENDING_HR) {
+    // No manager — notify all HRs directly
+    const hrEmails = await getAllHrEmails();
+    sendLeaveToHrEmail(hrEmails, employee.name, data).catch(console.error);
   }
 
   return data;
@@ -132,11 +125,13 @@ export const cancelLeave = async (leaveId, userId) => {
     .from("leave_requests")
     .select("id, status, user_id")
     .eq("id", leaveId)
-    .single(); 
+    .single();
 
   if (fetchError || !existing) throw new Error("Leave request not found");
   if (existing.user_id !== userId) throw new Error("Forbidden");
-  if (existing.status !== STATUS.PENDING_MANAGER) throw new Error("Only leaves pending manager approval can be cancelled");
+  if (existing.status !== STATUS.PENDING_MANAGER && existing.status !== STATUS.PENDING_HR) {
+    throw new Error("Only pending leave requests can be cancelled");
+  }
 
   const { error } = await supabase
     .from("leave_requests")
@@ -186,7 +181,6 @@ export const getTeamLeaves = async (managerId) => {
 };
 
 export const reviewLeave = async ({ leaveId, managerId, status, comments }) => {
-
   const { data: existing, error: fetchError } = await supabase
     .from("leave_requests")
     .select("id, status, manager_id, user_id, leave_type, start_date, end_date, days, reason, comments")
@@ -213,32 +207,85 @@ export const reviewLeave = async ({ leaveId, managerId, status, comments }) => {
 
   if (error) throw error;
 
-  // Notify employee only on final rejection at manager stage.
   if (nextStatus === STATUS.REJECTED) {
+    // Notify employee of rejection
     const { data: empUser } = await supabase.from("users").select("email").eq("id", existing.user_id).single();
     const { data: managerUser } = await supabase.from("users").select("name").eq("id", managerId).single();
 
     if (empUser?.email && managerUser?.name) {
-      const leaveDetails = { ...existing, comments: comments };
+      const leaveDetails = { ...existing, comments };
       sendLeaveApprovalEmail(empUser.email, managerUser.name, STATUS.REJECTED, leaveDetails).catch(console.error);
     }
+  } else {
+    // Manager approved → notify all HRs
+    const { data: empUser } = await supabase.from("users").select("name").eq("id", existing.user_id).single();
+    const hrEmails = await getAllHrEmails();
+    sendLeaveToHrEmail(hrEmails, empUser?.name ?? "An employee", data).catch(console.error);
   }
 
   return data;
 };
 
 export const getHrLeaves = async () => {
-  const { data, error } = await supabase
+  // Step 1: Fetch all HR user IDs
+  const { data: hrUsers, error: hrUsersError } = await supabase
+    .from("users")
+    .select("id")
+    .eq("role", "hr");
+
+  if (hrUsersError) throw hrUsersError;
+  const hrIds = (hrUsers || []).map((u) => u.id);
+
+  // Step 2: Pending HR leaves
+  const { data: pendingLeaves, error: pendingError } = await supabase
     .from("leave_requests")
-    .select("*, users(name, email, employee_id)")
+    .select("*")
     .eq("status", STATUS.PENDING_HR)
     .order("applied_at", { ascending: false });
 
-  if (error) throw error;
-  return data;
+  if (pendingError) throw pendingError;
+
+  // Step 3: History — approved/rejected leaves reviewed by an HR user
+  let historyLeaves = [];
+  if (hrIds.length > 0) {
+    const { data: hd, error: he } = await supabase
+      .from("leave_requests")
+      .select("*")
+      .in("status", [STATUS.APPROVED, STATUS.REJECTED])
+      .in("reviewed_by", hrIds)
+      .order("applied_at", { ascending: false });
+
+    if (he) throw he;
+    historyLeaves = hd || [];
+  }
+
+  // Step 4: Merge, deduplicate
+  const seen = new Set();
+  const allLeaves = [...(pendingLeaves || []), ...historyLeaves].filter((l) => {
+    if (seen.has(l.id)) return false;
+    seen.add(l.id);
+    return true;
+  });
+
+  if (allLeaves.length === 0) return [];
+
+  // Step 5: Fetch employee details separately (avoids ambiguous FK error)
+  const userIds = [...new Set(allLeaves.map((l) => l.user_id))];
+  const { data: users, error: usersError } = await supabase
+    .from("users")
+    .select("id, name, email, employee_id")
+    .in("id", userIds);
+
+  if (usersError) throw usersError;
+  const userMap = Object.fromEntries((users || []).map((u) => [u.id, u]));
+
+  // Step 6: Attach user info and sort
+  return allLeaves
+    .map((l) => ({ ...l, users: userMap[l.user_id] ?? null }))
+    .sort((a, b) => new Date(b.applied_at).getTime() - new Date(a.applied_at).getTime());
 };
 
-export const hrReviewLeave = async ({ leaveId, status, comments }) => {
+export const hrReviewLeave = async ({ leaveId, hrId, status, comments }) => {
   const { data: existing, error: fetchError } = await supabase
     .from("leave_requests")
     .select("id, status, user_id, leave_type, start_date, end_date, days, reason, comments, reviewed_by, reviewed_at")
@@ -249,6 +296,7 @@ export const hrReviewLeave = async ({ leaveId, status, comments }) => {
   if (existing.status !== STATUS.PENDING_HR) throw new Error("Leave is not pending HR approval");
 
   const finalStatus = status === STATUS.APPROVED ? STATUS.APPROVED : STATUS.REJECTED;
+
   const mergedComments = (() => {
     const hrLine = comments ? `HR: ${comments}` : null;
     if (!existing.comments && !hrLine) return null;
@@ -262,6 +310,8 @@ export const hrReviewLeave = async ({ leaveId, status, comments }) => {
     .update({
       status: finalStatus,
       comments: mergedComments,
+      reviewed_by: hrId,
+      reviewed_at: new Date().toISOString(),
     })
     .eq("id", leaveId)
     .select()
@@ -269,17 +319,17 @@ export const hrReviewLeave = async ({ leaveId, status, comments }) => {
 
   if (error) throw error;
 
-  // HR decision is the final decision. Notify employee.
+  // Notify employee of final decision
   const { data: empUser } = await supabase.from("users").select("email").eq("id", existing.user_id).single();
-  let managerName = "HR";
-  if (existing.reviewed_by) {
-    const { data: managerUser } = await supabase.from("users").select("name").eq("id", existing.reviewed_by).single();
-    if (managerUser?.name) managerName = managerUser.name;
+  let reviewerName = "HR";
+  if (hrId) {
+    const { data: hrUser } = await supabase.from("users").select("name").eq("id", hrId).single();
+    if (hrUser?.name) reviewerName = hrUser.name;
   }
 
   if (empUser?.email) {
     const leaveDetails = { ...existing, comments: mergedComments };
-    sendLeaveApprovalEmail(empUser.email, managerName, finalStatus, leaveDetails).catch(console.error);
+    sendLeaveApprovalEmail(empUser.email, reviewerName, finalStatus, leaveDetails).catch(console.error);
   }
 
   return data;
