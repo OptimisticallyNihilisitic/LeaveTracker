@@ -2,6 +2,8 @@ import React, { createContext, useContext, useEffect, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
 import { getMe } from "../api/user";
 
+const API_BASE = (import.meta.env.VITE_API_URL ?? "http://localhost:5000").replace(/\/$/, "");
+
 interface UserProfile {
   id: string;
   name: string;
@@ -17,7 +19,10 @@ interface AuthContextType {
   user: UserProfile | null;
   token: string | null;
   loading: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  /** Step 1: validate credentials → OTP is sent, returns the email for step 2 */
+  initiateLogin: (email: string, password: string) => Promise<void>;
+  /** Step 2: verify OTP → fully logged in */
+  verifyOtp: (email: string, password: string, otp: string) => Promise<void>;
   logout: () => Promise<void>;
   changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
 }
@@ -68,11 +73,38 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     };
   }, []);
 
-  const login = async (email: string, password: string) => {
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) throw new Error(error.message);
+  /** Step 1 — calls backend to validate credentials and trigger OTP email */
+  const initiateLogin = async (email: string, password: string) => {
+    const res = await fetch(`${API_BASE}/api/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password }),
+    });
 
-    await loadProfile(data.session.access_token);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error ?? "Login failed");
+  };
+
+  /** Step 2 — sends OTP to backend; on success hydrates Supabase session */
+  const verifyOtp = async (email: string, password: string, otp: string) => {
+    const res = await fetch(`${API_BASE}/api/auth/verify-otp`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password, otp }),
+    });
+
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error ?? "OTP verification failed");
+
+    // Hydrate the Supabase client with the real session tokens
+    const { error: sessionError } = await supabase.auth.setSession({
+      access_token: data.access_token,
+      refresh_token: data.refresh_token,
+    });
+
+    if (sessionError) throw new Error(sessionError.message);
+
+    await loadProfile(data.access_token);
   };
 
   const logout = async () => {
@@ -105,7 +137,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, loading, login, logout, changePassword }}>
+    <AuthContext.Provider value={{ user, token, loading, initiateLogin, verifyOtp, logout, changePassword }}>
       {children}
     </AuthContext.Provider>
   );

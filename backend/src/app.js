@@ -5,6 +5,7 @@ import attendanceRoutes from "./routes/attendanceRoutes.js";
 import userRoutes from "./routes/userRoutes.js";
 import adminRoutes from "./routes/adminRoutes.js";
 import inviteRoutes from "./routes/inviteRoutes.js";
+import mfaRoutes from "./routes/mfaRoutes.js";
 
 const app = express();
 
@@ -22,6 +23,7 @@ app.options(/.*/, cors(corsOptions));
 
 app.use(express.json());
 
+app.use("/api/auth", mfaRoutes);
 app.use("/api/user", userRoutes);
 app.use("/api/leave", leaveRoutes);
 app.use("/api/attendance", attendanceRoutes);

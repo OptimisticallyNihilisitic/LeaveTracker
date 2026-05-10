@@ -17,7 +17,7 @@ const LEAVE_TYPE_DOT: Record<string, string> = {
   floater: "bg-amber-400",
 };
 
-type FilterStatus = "all" | "pending_hr" | "approved" | "rejected";
+type FilterStatus = "all" | LeaveStatus;
 
 export default function HrApprovals() {
   const { token } = useAuth();
@@ -76,8 +76,9 @@ export default function HrApprovals() {
     return matchesFilter && matchesSearch;
   });
 
-  const counts = {
+  const counts: Record<FilterStatus, number> = {
     all: requests.length,
+    pending_manager: requests.filter((r) => r.status === "pending_manager").length,
     pending_hr: requests.filter((r) => r.status === "pending_hr").length,
     approved: requests.filter((r) => r.status === "approved").length,
     rejected: requests.filter((r) => r.status === "rejected").length,
