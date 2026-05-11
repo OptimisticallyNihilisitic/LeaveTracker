@@ -1,10 +1,15 @@
 import { useState, useEffect } from "react";
 import { getInvitationDetails, acceptInvitation, type InvitationDetails } from "../api/invite";
+import { supabase } from "../lib/supabaseClient";
 
 export default function InviteSetup() {
   const [token, setToken] = useState("");
   
   useEffect(() => {
+    // Destroy any existing session immediately — a logged-in user must not
+    // inherit their session when a new user accepts an invitation.
+    supabase.auth.signOut();
+
     const pathParts = window.location.pathname.split('/');
     if (pathParts.length > 2 && pathParts[1] === 'invite') {
       setToken(pathParts[2]);
@@ -96,7 +101,13 @@ export default function InviteSetup() {
           <h2 className="text-2xl font-bold text-slate-800 mt-4">Account Set Up!</h2>
           <p className="text-slate-500">Your account has been successfully created. You can now log in with your email and password.</p>
           <div className="pt-4">
-             <button onClick={() => window.location.href = "/"} className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-semibold py-3 rounded-xl shadow-lg shadow-emerald-200 transition-all">
+             <button
+               onClick={async () => {
+                 await supabase.auth.signOut();
+                 window.location.href = "/";
+               }}
+               className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-semibold py-3 rounded-xl shadow-lg shadow-emerald-200 transition-all"
+             >
                 Continue to Login
              </button>
           </div>
