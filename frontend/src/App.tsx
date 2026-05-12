@@ -11,7 +11,7 @@ import AdminPanel from "./pages/AdminPanel";
 import ChangePassword from "./pages/ChangePassword";
 import InviteSetup from "./pages/InviteSetup";
 import ForgotPassword from "./pages/ForgotPassword";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 
 
 type Page =
@@ -19,9 +19,17 @@ type Page =
   | "holiday-calendar" | "leave-approvals" | "hr-approvals"
   | "admin-panel" | "change-password";
 
+// Pages that deep-links from emails can target
+const VALID_DEEP_LINK_PAGES: Record<string, string> = {
+  "leave-approvals": "manager",
+  "hr-approvals": "hr",
+  "leaves": "", // any role can view their own leaves
+};
+
 function AppInner() {
-  const { user, loading } = useAuth();
+  const { user, loading, logout } = useAuth();
   const [currentPage, setCurrentPage] = useState<Page>("dashboard");
+  const deepLinkHandled = useRef(false);
 
   const [currentPath, setCurrentPath] = useState(window.location.pathname);
 
@@ -30,6 +38,56 @@ function AppInner() {
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
+
+  // Handle deep-link query params: ?page=leave-approvals&for=manager@email.com
+  useEffect(() => {
+    if (loading) return;
+    if (deepLinkHandled.current) return;
+
+    const params = new URLSearchParams(window.location.search);
+    const targetPage = params.get("page");
+    const intendedFor = params.get("for"); // email address the link was sent to
+
+    if (!targetPage || !(targetPage in VALID_DEEP_LINK_PAGES)) return;
+
+    // Strip the query params from the URL so they don't persist on refresh
+    const cleanUrl = window.location.pathname;
+    window.history.replaceState({}, '', cleanUrl);
+
+    deepLinkHandled.current = true;
+
+    const proceed = () => {
+      setCurrentPage(targetPage as Page);
+    };
+
+    if (user) {
+      // If a DIFFERENT user is logged in, sign them out so the link recipient can log in
+      if (intendedFor && user.email.toLowerCase() !== intendedFor.toLowerCase()) {
+        logout().then(() => {
+          // After logout the app re-renders to Login; store the intended page in sessionStorage
+          sessionStorage.setItem("deepLinkPage", targetPage);
+        });
+      } else {
+        proceed();
+      }
+    } else {
+      // Not logged in yet – remember the page so we can navigate after login
+      sessionStorage.setItem("deepLinkPage", targetPage);
+    }
+  }, [loading, user, logout]);
+
+  // After successful login, navigate to the stored deep-link page if present
+  useEffect(() => {
+    if (!user) return;
+    const saved = sessionStorage.getItem("deepLinkPage");
+    if (!saved) return;
+    sessionStorage.removeItem("deepLinkPage");
+    // Only navigate if the user's role is allowed
+    const requiredRole = VALID_DEEP_LINK_PAGES[saved];
+    if (!requiredRole || user.role === requiredRole) {
+      setCurrentPage(saved as Page);
+    }
+  }, [user]);
 
   if (currentPath.startsWith('/invite/')) {
     return <InviteSetup />;

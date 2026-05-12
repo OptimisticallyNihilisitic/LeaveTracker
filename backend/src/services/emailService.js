@@ -24,7 +24,10 @@ export const sendLeaveApplicationEmail = async (managerEmail, employeeName, leav
   const subject = isAutoApproved 
     ? `Notice: Sick Leave Applied by ${employeeName}` 
     : `New Leave Application from ${employeeName}`;
-    
+
+  const baseUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+  const reviewUrl = `${baseUrl}?page=leave-approvals&for=${encodeURIComponent(managerEmail)}`;
+
   const text = `${employeeName} has applied for leave.
 
 Type: ${leaveDetails.leave_type}
@@ -32,7 +35,9 @@ Dates: ${leaveDetails.start_date} to ${leaveDetails.end_date}
 Reason: ${leaveDetails.reason}
 Days: ${leaveDetails.days}
 
-${isAutoApproved ? 'This sick leave has been automatically approved.' : 'Please review this request.'}`;
+${isAutoApproved ? 'This sick leave has been automatically approved.' : `Please review this request by clicking the link below:`}
+
+${isAutoApproved ? '' : reviewUrl}`;
 
   try {
     if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
@@ -50,6 +55,10 @@ export const sendLeaveApprovalEmail = async (employeeEmail, managerName, status,
   if (!employeeEmail) return;
   const to = getTestEmailAlias(employeeEmail);
   const subject = `Leave Request ${status.toUpperCase()}`;
+
+  const baseUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+  const reviewUrl = `${baseUrl}?page=leaves&for=${encodeURIComponent(employeeEmail)}`;
+
   const text = `Your leave request has been ${status} by ${managerName}.
 
 Type: ${leaveDetails.leave_type}
@@ -57,7 +66,8 @@ Dates: ${leaveDetails.start_date} to ${leaveDetails.end_date}
 Days: ${leaveDetails.days}
 Comments: ${leaveDetails.comments || 'N/A'}
 
-Check the portal for more details.`;
+View your leave status here:
+${reviewUrl}`;
 
   try {
     if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
@@ -103,18 +113,21 @@ If you have any questions, please contact your administrator.`;
 export const sendLeaveToHrEmail = async (hrEmails, employeeName, leaveDetails) => {
   if (!hrEmails || hrEmails.length === 0) return;
 
+  const baseUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
   const subject = `Leave Pending HR Approval — ${employeeName}`;
-  const text = `A leave request from ${employeeName} is awaiting HR approval.
+
+  for (const hrEmail of hrEmails) {
+    const to = getTestEmailAlias(hrEmail);
+    const reviewUrl = `${baseUrl}?page=hr-approvals&for=${encodeURIComponent(hrEmail)}`;
+    const text = `A leave request from ${employeeName} is awaiting HR approval.
 
 Type: ${leaveDetails.leave_type}
 Dates: ${leaveDetails.start_date} to ${leaveDetails.end_date}
 Days: ${leaveDetails.days}
 Reason: ${leaveDetails.reason}
 
-Please log in to the portal to review and approve or reject this request.`;
-
-  for (const hrEmail of hrEmails) {
-    const to = getTestEmailAlias(hrEmail);
+Review and approve/reject this request here:
+${reviewUrl}`;
     try {
       if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
         await transporter.sendMail({ from: process.env.EMAIL_USER, to, subject, text });
