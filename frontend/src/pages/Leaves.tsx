@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { getMyLeaves, cancelLeave } from "../api/leave";
+import Pagination from "../components/Pagination";
 
 const StatusBadge = ({ status }: { status: string }) => {
   const styles: Record<string, string> = {
@@ -26,10 +27,22 @@ export default function Leaves() {
   const [loading, setLoading] = useState(true);
   const [cancelling, setCancelling] = useState<string | null>(null);
 
+  const [pendingPage, setPendingPage] = useState(1);
+  const [historyPage, setHistoryPage] = useState(1);
+  const [pendingPageSize, setPendingPageSize] = useState(5);
+  const [historyPageSize, setHistoryPageSize] = useState(5);
+
   const fetchLeaves = () => {
     if (!token) return;
     setLoading(true);
-    getMyLeaves(token).then((res: any) => setLeaves(res)).catch(console.error).finally(() => setLoading(false));
+    getMyLeaves(token)
+      .then((res: any) => {
+        setLeaves(res);
+        setPendingPage(1);
+        setHistoryPage(1);
+      })
+      .catch(console.error)
+      .finally(() => setLoading(false));
   };
 
   useEffect(() => { fetchLeaves(); }, [token]);
@@ -48,6 +61,12 @@ export default function Leaves() {
 
   const pending = leaves.filter((l) => l.status === "pending_manager" || l.status === "pending_hr");
   const history = leaves.filter((l) => l.status !== "pending_manager" && l.status !== "pending_hr");
+
+  const pendingTotalPages = Math.max(1, Math.ceil(pending.length / pendingPageSize));
+  const historyTotalPages = Math.max(1, Math.ceil(history.length / historyPageSize));
+
+  const pendingPaged = pending.slice((pendingPage - 1) * pendingPageSize, pendingPage * pendingPageSize);
+  const historyPaged = history.slice((historyPage - 1) * historyPageSize, historyPage * historyPageSize);
 
   const formatDate = (d: string) => new Date(d).toLocaleDateString("en-IN", { day: "numeric", month: "short" });
 
@@ -71,6 +90,7 @@ export default function Leaves() {
         </button>
       </div>
 
+      {/* Pending Approvals */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
         <h3 className="font-bold text-slate-800 mb-5">Pending Approvals</h3>
         <div className="overflow-x-auto rounded-xl border border-slate-200">
@@ -87,7 +107,7 @@ export default function Leaves() {
                 <tr><td colSpan={7} className="px-5 py-8 text-center text-slate-400">Loading...</td></tr>
               ) : pending.length === 0 ? (
                 <tr><td colSpan={7} className="px-5 py-8 text-center text-slate-400">No pending requests</td></tr>
-              ) : pending.map((l) => (
+              ) : pendingPaged.map((l) => (
                 <tr key={l.id} className="hover:bg-slate-50 transition-colors">
                   <td className="px-5 py-4 font-semibold text-slate-700 capitalize">{l.leave_type}</td>
                   <td className="px-5 py-4 text-slate-600">{formatDate(l.start_date)} – {formatDate(l.end_date)}</td>
@@ -110,9 +130,17 @@ export default function Leaves() {
             </tbody>
           </table>
         </div>
+        <Pagination
+          currentPage={pendingPage}
+          totalPages={pendingTotalPages}
+          totalItems={pending.length}
+          pageSize={pendingPageSize}
+          onPageChange={setPendingPage}
+          onPageSizeChange={(size) => { setPendingPageSize(size); setPendingPage(1); }}
+        />
       </div>
 
-
+      {/* Leave History */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
         <h3 className="font-bold text-slate-800 mb-5">Leave History</h3>
         <div className="overflow-x-auto rounded-xl border border-slate-200">
@@ -127,7 +155,7 @@ export default function Leaves() {
             <tbody className="divide-y divide-slate-100">
               {history.length === 0 ? (
                 <tr><td colSpan={6} className="px-5 py-8 text-center text-slate-400">No leave history</td></tr>
-              ) : history.map((l) => (
+              ) : historyPaged.map((l) => (
                 <tr key={l.id} className="hover:bg-slate-50 transition-colors">
                   <td className="px-5 py-4 font-semibold text-slate-700 capitalize">{l.leave_type}</td>
                   <td className="px-5 py-4 text-slate-600">{formatDate(l.start_date)} – {formatDate(l.end_date)}</td>
@@ -140,6 +168,14 @@ export default function Leaves() {
             </tbody>
           </table>
         </div>
+        <Pagination
+          currentPage={historyPage}
+          totalPages={historyTotalPages}
+          totalItems={history.length}
+          pageSize={historyPageSize}
+          onPageChange={setHistoryPage}
+          onPageSizeChange={(size) => { setHistoryPageSize(size); setHistoryPage(1); }}
+        />
       </div>
     </div>
   );

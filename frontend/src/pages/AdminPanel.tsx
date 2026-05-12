@@ -6,6 +6,8 @@ import {
   createUser, deleteUser, assignManager, getAllUsers, updateUser,
   getInvitations, createInvitation, cancelInvitation, resendInvitation, type InvitationRecord
 } from "../api/admin";
+import Pagination from "../components/Pagination";
+
 
 type Tab = "users" | "invitations" | "hierarchy" | "policy" | "holidays";
 
@@ -69,12 +71,24 @@ export default function AdminPanel() {
   const [holidayLoading, setHolidayLoading] = useState(false);
   const [deletingHolidayId, setDeletingHolidayId] = useState<string | null>(null);
 
+  // Pagination states per tab
+  const [usersPage, setUsersPage] = useState(1);
+  const [invitationsPage, setInvitationsPage] = useState(1);
+  const [hierarchyPage, setHierarchyPage] = useState(1);
+  const [holidaysPage, setHolidaysPage] = useState(1);
+  const [usersPageSize, setUsersPageSize] = useState(5);
+  const [invitationsPageSize, setInvitationsPageSize] = useState(5);
+  const [hierarchyPageSize, setHierarchyPageSize] = useState(5);
+  const [holidaysPageSize, setHolidaysPageSize] = useState(5);
+
   const fetchUsers = async () => {
     if (!token) return;
     setUsersLoading(true);
     try {
       const data = await getAllUsers(token);
       setUsers(data);
+      setUsersPage(1);
+      setHierarchyPage(1);
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -88,6 +102,7 @@ export default function AdminPanel() {
     try {
       const data = await getInvitations(token);
       setInvitations(data);
+      setInvitationsPage(1);
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -102,6 +117,7 @@ export default function AdminPanel() {
       const [p, h] = await Promise.all([getPolicies(token), getHolidays(token)]);
       setPolicies(p);
       setHolidays(h);
+      setHolidaysPage(1);
       if (p.length > 0) {
         const latest = p[0];
         setPolicyForm({
@@ -428,7 +444,7 @@ export default function AdminPanel() {
                   <tr><td colSpan={6} className="px-5 py-8 text-center text-slate-400">Loading...</td></tr>
                 ) : users.length === 0 ? (
                   <tr><td colSpan={6} className="px-5 py-8 text-center text-slate-400">No users yet.</td></tr>
-                ) : users.map((u) => (
+                ) : users.slice((usersPage - 1) * usersPageSize, usersPage * usersPageSize).map((u) => (
                   <tr key={u.id} className="hover:bg-slate-50 transition-colors">
                     <td className="px-5 py-4 text-slate-500 font-mono text-xs">{u.employee_id}</td>
                     <td className="px-5 py-4 font-semibold text-slate-800">{u.name}</td>
@@ -450,6 +466,14 @@ export default function AdminPanel() {
               </tbody>
             </table>
           </div>
+          <Pagination
+            currentPage={usersPage}
+            totalPages={Math.max(1, Math.ceil(users.length / usersPageSize))}
+            totalItems={users.length}
+            pageSize={usersPageSize}
+            onPageChange={setUsersPage}
+            onPageSizeChange={(size) => { setUsersPageSize(size); setUsersPage(1); }}
+          />
         </div>
       )}
 
@@ -530,7 +554,7 @@ export default function AdminPanel() {
                   <tr><td colSpan={6} className="px-5 py-8 text-center text-slate-400">Loading...</td></tr>
                 ) : invitations.length === 0 ? (
                   <tr><td colSpan={6} className="px-5 py-8 text-center text-slate-400">No invitations yet.</td></tr>
-                ) : invitations.map((inv) => (
+                ) : invitations.slice((invitationsPage - 1) * invitationsPageSize, invitationsPage * invitationsPageSize).map((inv) => (
                   <tr key={inv.id} className="hover:bg-slate-50 transition-colors">
                     <td className="px-5 py-4 text-slate-500 font-mono text-xs">{inv.employee_id}</td>
                     <td className="px-5 py-4 font-semibold text-slate-800">{inv.name}</td>
@@ -554,6 +578,14 @@ export default function AdminPanel() {
               </tbody>
             </table>
           </div>
+          <Pagination
+            currentPage={invitationsPage}
+            totalPages={Math.max(1, Math.ceil(invitations.length / invitationsPageSize))}
+            totalItems={invitations.length}
+            pageSize={invitationsPageSize}
+            onPageChange={setInvitationsPage}
+            onPageSizeChange={(size) => { setInvitationsPageSize(size); setInvitationsPage(1); }}
+          />
         </div>
       )}
 
@@ -584,7 +616,7 @@ export default function AdminPanel() {
               <tbody className="divide-y divide-slate-100">
                 {usersLoading ? (
                   <tr><td colSpan={4} className="px-5 py-8 text-center text-slate-400">Loading...</td></tr>
-                ) : users.map((u) => {
+                ) : users.slice((hierarchyPage - 1) * hierarchyPageSize, hierarchyPage * hierarchyPageSize).map((u) => {
                   const currentManagerId = hierarchyChanges.hasOwnProperty(u.id)
                     ? hierarchyChanges[u.id]
                     : u.manager_id;
@@ -653,6 +685,14 @@ export default function AdminPanel() {
               </tbody>
             </table>
           </div>
+          <Pagination
+            currentPage={hierarchyPage}
+            totalPages={Math.max(1, Math.ceil(users.length / hierarchyPageSize))}
+            totalItems={users.length}
+            pageSize={hierarchyPageSize}
+            onPageChange={setHierarchyPage}
+            onPageSizeChange={(size) => { setHierarchyPageSize(size); setHierarchyPage(1); }}
+          />
         </div>
       )}
 
@@ -777,7 +817,7 @@ export default function AdminPanel() {
               <tbody className="divide-y divide-slate-100">
                 {holidays.length === 0 ? (
                   <tr><td colSpan={4} className="px-5 py-8 text-center text-slate-400">No holidays added yet.</td></tr>
-                ) : holidays.map((h) => (
+                ) : holidays.slice((holidaysPage - 1) * holidaysPageSize, holidaysPage * holidaysPageSize).map((h) => (
                   <tr key={h.id} className="hover:bg-slate-50 transition-colors">
                     <td className="px-5 py-3.5 text-slate-500">{h.policies?.year ?? "—"}</td>
                     <td className="px-5 py-3.5 font-semibold text-slate-700">
@@ -800,6 +840,14 @@ export default function AdminPanel() {
               </tbody>
             </table>
           </div>
+          <Pagination
+            currentPage={holidaysPage}
+            totalPages={Math.max(1, Math.ceil(holidays.length / holidaysPageSize))}
+            totalItems={holidays.length}
+            pageSize={holidaysPageSize}
+            onPageChange={setHolidaysPage}
+            onPageSizeChange={(size) => { setHolidaysPageSize(size); setHolidaysPage(1); }}
+          />
         </div>
       )}
     </div>

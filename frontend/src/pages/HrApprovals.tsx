@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { getHrLeaves, hrReviewLeave } from "../api/leave";
+import Pagination from "../components/Pagination";
 
 type LeaveStatus = "pending_manager" | "pending_hr" | "approved" | "rejected";
 
@@ -32,13 +33,15 @@ export default function HrApprovals() {
   } | null>(null);
   const [comments, setComments] = useState("");
   const [reviewing, setReviewing] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(5);
 
   const fetchLeaves = () => {
     if (!token) return;
     setLoading(true);
     setFetchError(null);
     getHrLeaves(token)
-      .then((res: any) => setRequests(Array.isArray(res) ? res : []))
+      .then((res: any) => { setRequests(Array.isArray(res) ? res : []); setCurrentPage(1); })
       .catch((err: any) => setFetchError(err.message ?? "Failed to load leave requests"))
       .finally(() => setLoading(false));
   };
@@ -75,6 +78,12 @@ export default function HrApprovals() {
       r.leave_type?.toLowerCase().includes(search.toLowerCase());
     return matchesFilter && matchesSearch;
   });
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const pagedFiltered = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+
+  const handleFilterChange = (tab: FilterStatus) => { setFilter(tab); setCurrentPage(1); };
+  const handleSearchChange = (val: string) => { setSearch(val); setCurrentPage(1); };
 
   const counts: Record<FilterStatus, number> = {
     all: requests.length,
@@ -159,7 +168,7 @@ export default function HrApprovals() {
           {filterTabs.map((tab) => (
             <button
               key={tab}
-              onClick={() => setFilter(tab)}
+              onClick={() => handleFilterChange(tab)}
               className={`px-4 py-1.5 rounded-lg text-sm font-semibold capitalize transition-all ${
                 filter === tab
                   ? "bg-white text-slate-800 shadow-sm"
@@ -183,7 +192,7 @@ export default function HrApprovals() {
           type="text"
           placeholder="Search employee or leave type..."
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          onChange={(e) => handleSearchChange(e.target.value)}
           className="w-full sm:w-64 px-4 py-2 border border-slate-200 rounded-xl text-sm text-slate-700 placeholder-slate-400 bg-white focus:outline-none focus:ring-2 focus:ring-fuchsia-400 focus:border-transparent"
         />
       </div>
@@ -228,7 +237,7 @@ export default function HrApprovals() {
                   </td>
                 </tr>
               ) : (
-                filtered.map((req) => (
+                pagedFiltered.map((req) => (
                   <tr key={req.id} className="hover:bg-slate-50 transition-colors">
                     <td className="px-5 py-4">
                       <p className="font-semibold text-slate-800">
@@ -310,6 +319,14 @@ export default function HrApprovals() {
           </table>
         </div>
       </div>
+      <Pagination
+        currentPage={currentPage}
+        totalPages={totalPages}
+        totalItems={filtered.length}
+        pageSize={pageSize}
+        onPageChange={setCurrentPage}
+        onPageSizeChange={(size) => { setPageSize(size); setCurrentPage(1); }}
+      />
 
       {/* Confirm modal */}
       {confirmModal &&

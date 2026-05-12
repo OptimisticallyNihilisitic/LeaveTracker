@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { getTeamLeaves, reviewLeave } from "../api/leave";
+import Pagination from "../components/Pagination";
 
 type LeaveStatus = "pending_manager" | "pending_hr" | "approved" | "rejected";
 
@@ -28,11 +29,13 @@ export default function LeaveApprovals() {
   const [confirmModal, setConfirmModal] = useState<{ id: string; action: "approved" | "rejected" } | null>(null);
   const [comments, setComments] = useState("");
   const [reviewing, setReviewing] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(5);
 
   const fetchLeaves = () => {
     if (!token) return;
     setLoading(true);
-    getTeamLeaves(token).then((res: any) => setRequests(res)).catch(console.error).finally(() => setLoading(false));
+    getTeamLeaves(token).then((res: any) => { setRequests(res); setCurrentPage(1); }).catch(console.error).finally(() => setLoading(false));
   };
 
   useEffect(() => { fetchLeaves(); }, [token]);
@@ -59,6 +62,12 @@ export default function LeaveApprovals() {
       r.leave_type?.toLowerCase().includes(search.toLowerCase());
     return matchesFilter && matchesSearch;
   });
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const pagedFiltered = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+
+  const handleFilterChange = (tab: FilterStatus) => { setFilter(tab); setCurrentPage(1); };
+  const handleSearchChange = (val: string) => { setSearch(val); setCurrentPage(1); };
 
   const counts = {
     all: requests.length,
@@ -122,7 +131,7 @@ export default function LeaveApprovals() {
       <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
         <div className="flex gap-1.5 bg-slate-100 rounded-xl p-1">
           {filterTabs.map((tab) => (
-            <button key={tab} onClick={() => setFilter(tab)}
+            <button key={tab} onClick={() => handleFilterChange(tab)}
               className={`px-4 py-1.5 rounded-lg text-sm font-semibold capitalize transition-all ${filter === tab ? "bg-white text-slate-800 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}>
               {tab === "all" ? "all" : tab.replace("_", " ")}
               <span className={`ml-1.5 text-xs px-1.5 py-0.5 rounded-full ${filter === tab ? "bg-slate-100 text-slate-600" : "bg-slate-200 text-slate-500"}`}>
@@ -132,7 +141,7 @@ export default function LeaveApprovals() {
           ))}
         </div>
         <input type="text" placeholder="Search employee or leave type..." value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          onChange={(e) => handleSearchChange(e.target.value)}
           className="w-full sm:w-64 px-4 py-2 border border-slate-200 rounded-xl text-sm text-slate-700 placeholder-slate-400 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-transparent" />
       </div>
 
@@ -152,7 +161,7 @@ export default function LeaveApprovals() {
                 <tr><td colSpan={8} className="px-5 py-12 text-center text-slate-400">Loading...</td></tr>
               ) : filtered.length === 0 ? (
                 <tr><td colSpan={8} className="px-5 py-12 text-center text-slate-400">No requests match your filter</td></tr>
-              ) : filtered.map((req) => (
+              ) : pagedFiltered.map((req) => (
                 <tr key={req.id} className="hover:bg-slate-50 transition-colors">
                   <td className="px-5 py-4">
                     <p className="font-semibold text-slate-800">{req.users?.name ?? "—"}</p>
@@ -200,6 +209,14 @@ export default function LeaveApprovals() {
           </table>
         </div>
       </div>
+      <Pagination
+        currentPage={currentPage}
+        totalPages={totalPages}
+        totalItems={filtered.length}
+        pageSize={pageSize}
+        onPageChange={setCurrentPage}
+        onPageSizeChange={(size) => { setPageSize(size); setCurrentPage(1); }}
+      />
 
   
       {confirmModal && (() => {
