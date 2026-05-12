@@ -3,6 +3,28 @@ import { useAuth } from "../context/AuthContext";
 import { getMyLeaves, cancelLeave } from "../api/leave";
 import Pagination from "../components/Pagination";
 
+const SearchInput = ({ value, onChange, placeholder }: { value: string; onChange: (v: string) => void; placeholder: string }) => (
+  <div className="relative">
+    <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
+    </svg>
+    <input
+      type="text"
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      placeholder={placeholder}
+      className="pl-9 pr-4 py-2 w-full sm:w-60 border border-slate-200 rounded-xl text-sm text-slate-700 placeholder-slate-400 bg-white focus:outline-none focus:ring-2 focus:ring-slate-300 focus:border-transparent"
+    />
+    {value && (
+      <button onClick={() => onChange("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
+    )}
+  </div>
+);
+
 const StatusBadge = ({ status }: { status: string }) => {
   const styles: Record<string, string> = {
     pending_manager: "bg-amber-100 text-amber-700",
@@ -21,6 +43,21 @@ const StatusBadge = ({ status }: { status: string }) => {
   );
 };
 
+const matchLeave = (l: any, q: string, formatDate: (d: string) => string) => {
+  const lower = q.toLowerCase();
+  return (
+    l.leave_type?.toLowerCase().includes(lower) ||
+    (l.reason ?? "").toLowerCase().includes(lower) ||
+    l.status?.toLowerCase().includes(lower) ||
+    (l.status === "pending_manager" && "pending manager".includes(lower)) ||
+    (l.status === "pending_hr" && "pending hr".includes(lower)) ||
+    String(l.days).includes(lower) ||
+    formatDate(l.start_date).toLowerCase().includes(lower) ||
+    formatDate(l.end_date).toLowerCase().includes(lower) ||
+    formatDate(l.applied_at).toLowerCase().includes(lower)
+  );
+};
+
 export default function Leaves() {
   const { token } = useAuth();
   const [leaves, setLeaves] = useState<any[]>([]);
@@ -31,6 +68,8 @@ export default function Leaves() {
   const [historyPage, setHistoryPage] = useState(1);
   const [pendingPageSize, setPendingPageSize] = useState(5);
   const [historyPageSize, setHistoryPageSize] = useState(5);
+  const [pendingSearch, setPendingSearch] = useState("");
+  const [historySearch, setHistorySearch] = useState("");
 
   const fetchLeaves = () => {
     if (!token) return;
@@ -59,16 +98,19 @@ export default function Leaves() {
     }
   };
 
+  const formatDate = (d: string) => new Date(d).toLocaleDateString("en-IN", { day: "numeric", month: "short" });
+
   const pending = leaves.filter((l) => l.status === "pending_manager" || l.status === "pending_hr");
   const history = leaves.filter((l) => l.status !== "pending_manager" && l.status !== "pending_hr");
 
-  const pendingTotalPages = Math.max(1, Math.ceil(pending.length / pendingPageSize));
-  const historyTotalPages = Math.max(1, Math.ceil(history.length / historyPageSize));
+  const filteredPending = pendingSearch ? pending.filter((l) => matchLeave(l, pendingSearch, formatDate)) : pending;
+  const filteredHistory = historySearch ? history.filter((l) => matchLeave(l, historySearch, formatDate)) : history;
 
-  const pendingPaged = pending.slice((pendingPage - 1) * pendingPageSize, pendingPage * pendingPageSize);
-  const historyPaged = history.slice((historyPage - 1) * historyPageSize, historyPage * historyPageSize);
+  const pendingTotalPages = Math.max(1, Math.ceil(filteredPending.length / pendingPageSize));
+  const historyTotalPages = Math.max(1, Math.ceil(filteredHistory.length / historyPageSize));
 
-  const formatDate = (d: string) => new Date(d).toLocaleDateString("en-IN", { day: "numeric", month: "short" });
+  const pendingPaged = filteredPending.slice((pendingPage - 1) * pendingPageSize, pendingPage * pendingPageSize);
+  const historyPaged = filteredHistory.slice((historyPage - 1) * historyPageSize, historyPage * historyPageSize);
 
   return (
     <div className="space-y-6">
@@ -92,7 +134,14 @@ export default function Leaves() {
 
       {/* Pending Approvals */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-        <h3 className="font-bold text-slate-800 mb-5">Pending Approvals</h3>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
+          <h3 className="font-bold text-slate-800">Pending Approvals</h3>
+          <SearchInput
+            value={pendingSearch}
+            onChange={(v) => { setPendingSearch(v); setPendingPage(1); }}
+            placeholder="Search leave type, reason..."
+          />
+        </div>
         <div className="overflow-x-auto rounded-xl border border-slate-200">
           <table className="w-full text-sm">
             <thead>
@@ -105,8 +154,10 @@ export default function Leaves() {
             <tbody className="divide-y divide-slate-100">
               {loading ? (
                 <tr><td colSpan={7} className="px-5 py-8 text-center text-slate-400">Loading...</td></tr>
-              ) : pending.length === 0 ? (
-                <tr><td colSpan={7} className="px-5 py-8 text-center text-slate-400">No pending requests</td></tr>
+              ) : filteredPending.length === 0 ? (
+                <tr><td colSpan={7} className="px-5 py-8 text-center text-slate-400">
+                  {pendingSearch ? "No results match your search" : "No pending requests"}
+                </td></tr>
               ) : pendingPaged.map((l) => (
                 <tr key={l.id} className="hover:bg-slate-50 transition-colors">
                   <td className="px-5 py-4 font-semibold text-slate-700 capitalize">{l.leave_type}</td>
@@ -133,7 +184,7 @@ export default function Leaves() {
         <Pagination
           currentPage={pendingPage}
           totalPages={pendingTotalPages}
-          totalItems={pending.length}
+          totalItems={filteredPending.length}
           pageSize={pendingPageSize}
           onPageChange={setPendingPage}
           onPageSizeChange={(size) => { setPendingPageSize(size); setPendingPage(1); }}
@@ -142,7 +193,14 @@ export default function Leaves() {
 
       {/* Leave History */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-        <h3 className="font-bold text-slate-800 mb-5">Leave History</h3>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
+          <h3 className="font-bold text-slate-800">Leave History</h3>
+          <SearchInput
+            value={historySearch}
+            onChange={(v) => { setHistorySearch(v); setHistoryPage(1); }}
+            placeholder="Search leave type, status..."
+          />
+        </div>
         <div className="overflow-x-auto rounded-xl border border-slate-200">
           <table className="w-full text-sm">
             <thead>
@@ -153,8 +211,10 @@ export default function Leaves() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {history.length === 0 ? (
-                <tr><td colSpan={6} className="px-5 py-8 text-center text-slate-400">No leave history</td></tr>
+              {filteredHistory.length === 0 ? (
+                <tr><td colSpan={6} className="px-5 py-8 text-center text-slate-400">
+                  {historySearch ? "No results match your search" : "No leave history"}
+                </td></tr>
               ) : historyPaged.map((l) => (
                 <tr key={l.id} className="hover:bg-slate-50 transition-colors">
                   <td className="px-5 py-4 font-semibold text-slate-700 capitalize">{l.leave_type}</td>
@@ -171,7 +231,7 @@ export default function Leaves() {
         <Pagination
           currentPage={historyPage}
           totalPages={historyTotalPages}
-          totalItems={history.length}
+          totalItems={filteredHistory.length}
           pageSize={historyPageSize}
           onPageChange={setHistoryPage}
           onPageSizeChange={(size) => { setHistoryPageSize(size); setHistoryPage(1); }}

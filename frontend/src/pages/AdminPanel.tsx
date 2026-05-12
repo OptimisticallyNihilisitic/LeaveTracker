@@ -81,6 +81,12 @@ export default function AdminPanel() {
   const [hierarchyPageSize, setHierarchyPageSize] = useState(5);
   const [holidaysPageSize, setHolidaysPageSize] = useState(5);
 
+  // Search states per tab
+  const [usersSearch, setUsersSearch] = useState("");
+  const [invitationsSearch, setInvitationsSearch] = useState("");
+  const [hierarchySearch, setHierarchySearch] = useState("");
+  const [holidaysSearch, setHolidaysSearch] = useState("");
+
   const fetchUsers = async () => {
     if (!token) return;
     setUsersLoading(true);
@@ -316,6 +322,25 @@ export default function AdminPanel() {
 
   const managerOptions = users.filter((u) => u.role === "manager" || u.role === "hr" || u.role === "admin");
 
+  const matchQ = (q: string, ...fields: (string | number | null | undefined)[]) =>
+    fields.some((f) => String(f ?? "").toLowerCase().includes(q.toLowerCase()));
+
+  const filteredUsers = usersSearch
+    ? users.filter((u) => matchQ(usersSearch, u.name, u.email, u.employee_id, u.role, getManagerName(u.manager_id)))
+    : users;
+
+  const filteredInvitations = invitationsSearch
+    ? invitations.filter((inv) => matchQ(invitationsSearch, inv.name, inv.email, inv.employee_id, inv.role, inv.status))
+    : invitations;
+
+  const filteredHierarchy = hierarchySearch
+    ? users.filter((u) => matchQ(hierarchySearch, u.name, u.employee_id, u.role, getManagerName(u.manager_id)))
+    : users;
+
+  const filteredHolidays = holidaysSearch
+    ? holidays.filter((h) => matchQ(holidaysSearch, h.name, h.date, h.policies?.year, h.is_floater ? "floater" : ""))
+    : holidays;
+
   const handleRefresh = () => {
     if (activeTab === "users") fetchUsers();
     else if (activeTab === "invitations") fetchInvitations();
@@ -367,15 +392,21 @@ export default function AdminPanel() {
 
       {activeTab === "users" && (
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-8 space-y-6">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3 justify-between">
             <div>
               <h3 className="font-bold text-slate-800">All Users</h3>
               <p className="text-sm text-slate-500 mt-0.5">Create, view and delete user accounts</p>
             </div>
-            <button onClick={() => setShowUserForm((v) => !v)}
-              className="bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-semibold px-4 py-2 rounded-xl transition-colors shadow-sm">
-              {showUserForm ? "Cancel" : "+ Add User"}
-            </button>
+            <div className="flex items-center gap-2">
+              <div className="relative">
+                <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" /></svg>
+                <input type="text" value={usersSearch} onChange={(e) => { setUsersSearch(e.target.value); setUsersPage(1); }} placeholder="Search users..." className="pl-9 pr-4 py-2 w-48 border border-slate-200 rounded-xl text-sm text-slate-700 placeholder-slate-400 bg-white focus:outline-none focus:ring-2 focus:ring-slate-300" />
+              </div>
+              <button onClick={() => setShowUserForm((v) => !v)}
+                className="bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-semibold px-4 py-2 rounded-xl transition-colors shadow-sm whitespace-nowrap">
+                {showUserForm ? "Cancel" : "+ Add User"}
+              </button>
+            </div>
           </div>
 
         
@@ -442,9 +473,9 @@ export default function AdminPanel() {
               <tbody className="divide-y divide-slate-100">
                 {usersLoading ? (
                   <tr><td colSpan={6} className="px-5 py-8 text-center text-slate-400">Loading...</td></tr>
-                ) : users.length === 0 ? (
-                  <tr><td colSpan={6} className="px-5 py-8 text-center text-slate-400">No users yet.</td></tr>
-                ) : users.slice((usersPage - 1) * usersPageSize, usersPage * usersPageSize).map((u) => (
+                ) : filteredUsers.length === 0 ? (
+                  <tr><td colSpan={6} className="px-5 py-8 text-center text-slate-400">{usersSearch ? "No results match your search" : "No users yet."}</td></tr>
+                ) : filteredUsers.slice((usersPage - 1) * usersPageSize, usersPage * usersPageSize).map((u) => (
                   <tr key={u.id} className="hover:bg-slate-50 transition-colors">
                     <td className="px-5 py-4 text-slate-500 font-mono text-xs">{u.employee_id}</td>
                     <td className="px-5 py-4 font-semibold text-slate-800">{u.name}</td>
@@ -468,8 +499,8 @@ export default function AdminPanel() {
           </div>
           <Pagination
             currentPage={usersPage}
-            totalPages={Math.max(1, Math.ceil(users.length / usersPageSize))}
-            totalItems={users.length}
+            totalPages={Math.max(1, Math.ceil(filteredUsers.length / usersPageSize))}
+            totalItems={filteredUsers.length}
             pageSize={usersPageSize}
             onPageChange={setUsersPage}
             onPageSizeChange={(size) => { setUsersPageSize(size); setUsersPage(1); }}
@@ -479,15 +510,21 @@ export default function AdminPanel() {
 
       {activeTab === "invitations" && (
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-8 space-y-6">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3 justify-between">
             <div>
               <h3 className="font-bold text-slate-800">Email Invitations</h3>
               <p className="text-sm text-slate-500 mt-0.5">Invite employees via email and manage pending setups.</p>
             </div>
-            <button onClick={() => setShowInviteForm((v) => !v)}
-              className="bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-semibold px-4 py-2 rounded-xl transition-colors shadow-sm">
-              {showInviteForm ? "Cancel" : "+ Invite Employee"}
-            </button>
+            <div className="flex items-center gap-2">
+              <div className="relative">
+                <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" /></svg>
+                <input type="text" value={invitationsSearch} onChange={(e) => { setInvitationsSearch(e.target.value); setInvitationsPage(1); }} placeholder="Search invitations..." className="pl-9 pr-4 py-2 w-48 border border-slate-200 rounded-xl text-sm text-slate-700 placeholder-slate-400 bg-white focus:outline-none focus:ring-2 focus:ring-slate-300" />
+              </div>
+              <button onClick={() => setShowInviteForm((v) => !v)}
+                className="bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-semibold px-4 py-2 rounded-xl transition-colors shadow-sm whitespace-nowrap">
+                {showInviteForm ? "Cancel" : "+ Invite Employee"}
+              </button>
+            </div>
           </div>
 
           {showInviteForm && (
@@ -552,9 +589,9 @@ export default function AdminPanel() {
               <tbody className="divide-y divide-slate-100">
                 {invitationsLoading ? (
                   <tr><td colSpan={6} className="px-5 py-8 text-center text-slate-400">Loading...</td></tr>
-                ) : invitations.length === 0 ? (
-                  <tr><td colSpan={6} className="px-5 py-8 text-center text-slate-400">No invitations yet.</td></tr>
-                ) : invitations.slice((invitationsPage - 1) * invitationsPageSize, invitationsPage * invitationsPageSize).map((inv) => (
+                ) : filteredInvitations.length === 0 ? (
+                  <tr><td colSpan={6} className="px-5 py-8 text-center text-slate-400">{invitationsSearch ? "No results match your search" : "No invitations yet."}</td></tr>
+                ) : filteredInvitations.slice((invitationsPage - 1) * invitationsPageSize, invitationsPage * invitationsPageSize).map((inv) => (
                   <tr key={inv.id} className="hover:bg-slate-50 transition-colors">
                     <td className="px-5 py-4 text-slate-500 font-mono text-xs">{inv.employee_id}</td>
                     <td className="px-5 py-4 font-semibold text-slate-800">{inv.name}</td>
@@ -580,8 +617,8 @@ export default function AdminPanel() {
           </div>
           <Pagination
             currentPage={invitationsPage}
-            totalPages={Math.max(1, Math.ceil(invitations.length / invitationsPageSize))}
-            totalItems={invitations.length}
+            totalPages={Math.max(1, Math.ceil(filteredInvitations.length / invitationsPageSize))}
+            totalItems={filteredInvitations.length}
             pageSize={invitationsPageSize}
             onPageChange={setInvitationsPage}
             onPageSizeChange={(size) => { setInvitationsPageSize(size); setInvitationsPage(1); }}
@@ -591,17 +628,23 @@ export default function AdminPanel() {
 
       {activeTab === "hierarchy" && (
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-8 space-y-6">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3 justify-between">
             <div>
               <h3 className="font-bold text-slate-800">Reporting Hierarchy</h3>
               <p className="text-sm text-slate-500 mt-0.5">Set who each user reports to. Changes are batched — click Save when done.</p>
             </div>
-            {Object.keys(hierarchyChanges).length > 0 || Object.keys(roleChanges).length > 0 ? (
-              <button onClick={handleSaveHierarchy} disabled={savingHierarchy}
-                className="bg-emerald-500 hover:bg-emerald-600 disabled:opacity-60 text-white font-semibold px-5 py-2.5 rounded-xl transition-colors shadow-sm text-sm">
-                {savingHierarchy ? "Saving..." : `Save changes`}
-              </button>
-            ) : null}
+            <div className="flex items-center gap-2">
+              <div className="relative">
+                <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" /></svg>
+                <input type="text" value={hierarchySearch} onChange={(e) => { setHierarchySearch(e.target.value); setHierarchyPage(1); }} placeholder="Search by name, role..." className="pl-9 pr-4 py-2 w-48 border border-slate-200 rounded-xl text-sm text-slate-700 placeholder-slate-400 bg-white focus:outline-none focus:ring-2 focus:ring-slate-300" />
+              </div>
+              {Object.keys(hierarchyChanges).length > 0 || Object.keys(roleChanges).length > 0 ? (
+                <button onClick={handleSaveHierarchy} disabled={savingHierarchy}
+                  className="bg-emerald-500 hover:bg-emerald-600 disabled:opacity-60 text-white font-semibold px-5 py-2 rounded-xl transition-colors shadow-sm text-sm whitespace-nowrap">
+                  {savingHierarchy ? "Saving..." : "Save changes"}
+                </button>
+              ) : null}
+            </div>
           </div>
 
           <div className="overflow-x-auto rounded-xl border border-slate-200">
@@ -616,7 +659,7 @@ export default function AdminPanel() {
               <tbody className="divide-y divide-slate-100">
                 {usersLoading ? (
                   <tr><td colSpan={4} className="px-5 py-8 text-center text-slate-400">Loading...</td></tr>
-                ) : users.slice((hierarchyPage - 1) * hierarchyPageSize, hierarchyPage * hierarchyPageSize).map((u) => {
+                ) : filteredHierarchy.slice((hierarchyPage - 1) * hierarchyPageSize, hierarchyPage * hierarchyPageSize).map((u) => {
                   const currentManagerId = hierarchyChanges.hasOwnProperty(u.id)
                     ? hierarchyChanges[u.id]
                     : u.manager_id;
@@ -687,8 +730,8 @@ export default function AdminPanel() {
           </div>
           <Pagination
             currentPage={hierarchyPage}
-            totalPages={Math.max(1, Math.ceil(users.length / hierarchyPageSize))}
-            totalItems={users.length}
+            totalPages={Math.max(1, Math.ceil(filteredHierarchy.length / hierarchyPageSize))}
+            totalItems={filteredHierarchy.length}
             pageSize={hierarchyPageSize}
             onPageChange={setHierarchyPage}
             onPageSizeChange={(size) => { setHierarchyPageSize(size); setHierarchyPage(1); }}
@@ -759,9 +802,15 @@ export default function AdminPanel() {
 
       {activeTab === "holidays" && (
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-8 space-y-6">
-          <div>
-            <h3 className="font-bold text-slate-800">Holidays</h3>
-            <p className="text-sm text-slate-500 mt-0.5">Add or remove holidays for any policy year.</p>
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3 justify-between">
+            <div>
+              <h3 className="font-bold text-slate-800">Holidays</h3>
+              <p className="text-sm text-slate-500 mt-0.5">Add or remove holidays for any policy year.</p>
+            </div>
+            <div className="relative">
+              <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" /></svg>
+              <input type="text" value={holidaysSearch} onChange={(e) => { setHolidaysSearch(e.target.value); setHolidaysPage(1); }} placeholder="Search holidays..." className="pl-9 pr-4 py-2 w-48 border border-slate-200 rounded-xl text-sm text-slate-700 placeholder-slate-400 bg-white focus:outline-none focus:ring-2 focus:ring-slate-300" />
+            </div>
           </div>
 
           <div className="space-y-4">
@@ -815,9 +864,9 @@ export default function AdminPanel() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {holidays.length === 0 ? (
-                  <tr><td colSpan={4} className="px-5 py-8 text-center text-slate-400">No holidays added yet.</td></tr>
-                ) : holidays.slice((holidaysPage - 1) * holidaysPageSize, holidaysPage * holidaysPageSize).map((h) => (
+                {filteredHolidays.length === 0 ? (
+                  <tr><td colSpan={4} className="px-5 py-8 text-center text-slate-400">{holidaysSearch ? "No results match your search" : "No holidays added yet."}</td></tr>
+                ) : filteredHolidays.slice((holidaysPage - 1) * holidaysPageSize, holidaysPage * holidaysPageSize).map((h) => (
                   <tr key={h.id} className="hover:bg-slate-50 transition-colors">
                     <td className="px-5 py-3.5 text-slate-500">{h.policies?.year ?? "—"}</td>
                     <td className="px-5 py-3.5 font-semibold text-slate-700">
@@ -842,8 +891,8 @@ export default function AdminPanel() {
           </div>
           <Pagination
             currentPage={holidaysPage}
-            totalPages={Math.max(1, Math.ceil(holidays.length / holidaysPageSize))}
-            totalItems={holidays.length}
+            totalPages={Math.max(1, Math.ceil(filteredHolidays.length / holidaysPageSize))}
+            totalItems={filteredHolidays.length}
             pageSize={holidaysPageSize}
             onPageChange={setHolidaysPage}
             onPageSizeChange={(size) => { setHolidaysPageSize(size); setHolidaysPage(1); }}
