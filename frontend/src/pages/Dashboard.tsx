@@ -18,13 +18,16 @@ export default function Dashboard() {
   const [leaves, setLeaves] = useState<LeaveRequest[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
+  const fetchData = () => {
     if (!token) return;
+    setLoading(true);
     getMyLeaves(token)
       .then((data) => setLeaves(data as LeaveRequest[]))
       .catch(console.error)
       .finally(() => setLoading(false));
-  }, [token]);
+  };
+
+  useEffect(() => { fetchData(); }, [token]);
 
   const pendingLeaves = leaves.filter((l) => l.status === "pending_manager" || l.status === "pending_hr");
   const takenThisMonth = leaves.filter((l) => {
@@ -76,6 +79,22 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-xl font-bold text-slate-800">Dashboard</h2>
+          <p className="text-sm text-slate-500 mt-0.5">Your leave summary at a glance</p>
+        </div>
+        <button
+          onClick={fetchData}
+          disabled={loading}
+          className="flex items-center gap-2 text-sm font-semibold text-slate-600 hover:text-slate-800 border border-slate-200 hover:border-slate-300 px-4 py-2 rounded-xl transition-colors bg-white hover:bg-slate-50 disabled:opacity-50 shadow-sm"
+        >
+          <svg className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+          {loading ? 'Refreshing...' : 'Refresh'}
+        </button>
+      </div>
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard title="Leaves taken" value={takenThisMonthDays} subtitle="day(s)" />
         <StatCard title="Leave balance" value={totalBalance} subtitle="total remaining" />

@@ -99,9 +99,13 @@ export default function HrApprovals() {
         </div>
         <button
           onClick={fetchLeaves}
-          className="text-sm font-semibold text-fuchsia-600 hover:text-fuchsia-700 border border-fuchsia-200 hover:border-fuchsia-300 px-4 py-2 rounded-xl transition-colors bg-fuchsia-50 hover:bg-fuchsia-100"
+          disabled={loading}
+          className="flex items-center gap-2 text-sm font-semibold text-slate-600 hover:text-slate-800 border border-slate-200 hover:border-slate-300 px-4 py-2 rounded-xl transition-colors bg-white hover:bg-slate-50 disabled:opacity-50 shadow-sm"
         >
-          ↻ Refresh
+          <svg className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+          {loading ? 'Refreshing...' : 'Refresh'}
         </button>
       </div>
 

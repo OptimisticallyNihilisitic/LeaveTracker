@@ -300,12 +300,35 @@ export default function AdminPanel() {
 
   const managerOptions = users.filter((u) => u.role === "manager" || u.role === "hr" || u.role === "admin");
 
+  const handleRefresh = () => {
+    if (activeTab === "users") fetchUsers();
+    else if (activeTab === "invitations") fetchInvitations();
+    else if (activeTab === "policy" || activeTab === "holidays") fetchPoliciesAndHolidays();
+    else if (activeTab === "hierarchy") fetchUsers();
+  };
+
+  const isRefreshing = usersLoading || invitationsLoading || policyLoading || holidayLoading;
+
   return (
     <div className="space-y-6 max-w-5xl">
  
-      <div>
-        <h2 className="text-xl font-bold text-slate-800">Admin Panel</h2>
-        <p className="text-sm text-slate-500 mt-0.5">Manage users, hierarchy, leave policies and holidays</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-xl font-bold text-slate-800">Admin Panel</h2>
+          <p className="text-sm text-slate-500 mt-0.5">Manage users, hierarchy, leave policies and holidays</p>
+        </div>
+        {activeTab !== "policy" && (
+          <button
+            onClick={handleRefresh}
+            disabled={isRefreshing}
+            className="flex items-center gap-2 text-sm font-semibold text-slate-600 hover:text-slate-800 border border-slate-200 hover:border-slate-300 px-4 py-2 rounded-xl transition-colors bg-white hover:bg-slate-50 disabled:opacity-50 shadow-sm"
+          >
+            <svg className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            {isRefreshing ? 'Refreshing...' : 'Refresh'}
+          </button>
+        )}
       </div>
 
       {error && (
