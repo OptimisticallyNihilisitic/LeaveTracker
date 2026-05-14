@@ -8,7 +8,6 @@ const STATUS = {
   REJECTED: "rejected",
 };
 
-// Helper: fetch all HR user emails
 const getAllHrEmails = async () => {
   const { data, error } = await supabase
     .from("users")
@@ -69,10 +68,6 @@ export const applyLeave = async ({ userId, leave_type, start_date, end_date, day
     }
   }
 
-  // Determine initial status:
-  // - admin           → approved immediately
-  // - has manager_id  → pending_manager
-  // - no manager_id   → pending_hr (goes directly to all HRs)
   let initialStatus;
   if (employee.role === "admin") {
     initialStatus = STATUS.APPROVED;
@@ -188,7 +183,7 @@ export const reviewLeave = async ({ leaveId, managerId, status, comments }) => {
     .single();
 
   if (fetchError || !existing) throw new Error("Leave request not found");
-  if (existing.manager_id !== managerId) throw new Error("Forbidden");
+  if (existing.manager_id !== managerId) throw new Error("Forbidden"); //Check if authorized
   if (existing.status !== STATUS.PENDING_MANAGER) throw new Error("Leave already reviewed");
 
   const nextStatus = status === STATUS.APPROVED ? STATUS.PENDING_HR : STATUS.REJECTED;

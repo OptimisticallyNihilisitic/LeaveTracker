@@ -73,7 +73,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     };
   }, []);
 
-  /** Step 1 — calls backend to validate credentials and trigger OTP email */
   const initiateLogin = async (email: string, password: string) => {
     const res = await fetch(`${API_BASE}/api/auth/login`, {
       method: "POST",
@@ -85,7 +84,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     if (!res.ok) throw new Error(data.error ?? "Login failed");
   };
 
-  /** Step 2 — sends OTP to backend; on success hydrates Supabase session */
   const verifyOtp = async (email: string, password: string, otp: string) => {
     const res = await fetch(`${API_BASE}/api/auth/verify-otp`, {
       method: "POST",

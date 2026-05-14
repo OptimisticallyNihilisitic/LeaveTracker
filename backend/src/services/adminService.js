@@ -12,21 +12,7 @@ export const getAllUsers = async () => {
   return data;
 };
 
-export const createUser = async (userData) => {
-  const payload = {
-    ...userData,
-    ...(userData?.role ? { role: String(userData.role).toLowerCase() } : null),
-  };
 
-  const { data, error } = await supabase
-    .from("users")
-    .insert(payload)
-    .select()
-    .single();
-
-  if (error) throw error;
-  return data;
-};
 
 export const updateUser = async (userId, updates) => {
   const { data, error } = await supabase
@@ -40,21 +26,6 @@ export const updateUser = async (userId, updates) => {
   return data;
 }; 
 
-export const deleteUser = async (userId) => {
-  // Remove user as manager from any pending invitations to avoid foreign key violations
-  await supabase
-    .from("invitations")
-    .update({ manager_id: null })
-    .eq("manager_id", userId);
-
-  const { error } = await supabase
-    .from("users")
-    .delete()
-    .eq("id", userId);
-
-  if (error) throw error;
-  return { message: "User deleted" };
-};
 
 //Policies
 export const getPolicies = async () => {
@@ -209,7 +180,7 @@ export const createUserWithAuth = async ({ email, password, name, employee_id, r
     .single();
 
   if (error) {
-    await supabase.auth.admin.deleteUser(userId);
+    await supabase.auth.admin.deleteUser(userId); //To prevent orphanaged accounts
     throw new Error(error.message);
   }
 

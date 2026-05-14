@@ -10,24 +10,6 @@ export const getAllUsers = async (req, res) => {
   }
 };
 
-export const createUser = async (req, res) => {
-  try {
-    const { employee_id, name, email, role, manager_id, sick_leaves, casual_leaves, floater_leaves } = req.body;
-
-    if (!employee_id || !name || !email || !role) {
-      return res.status(400).json({ error: "employee_id, name, email and role are required" });
-    }
-
-    const data = await adminService.createUser({
-      employee_id, name, email, role, manager_id,
-      sick_leaves, casual_leaves, floater_leaves,
-    });
-  
-    res.status(201).json(data);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-};
 
 export const updateUser = async (req, res) => {
   try {
@@ -38,14 +20,7 @@ export const updateUser = async (req, res) => {
   }
 };
 
-export const deleteUser = async (req, res) => {
-  try {
-    const data = await adminService.deleteUser(req.params.id);
-    res.json(data);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-};
+
 
 //Policies
 

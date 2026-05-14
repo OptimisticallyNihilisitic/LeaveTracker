@@ -32,7 +32,6 @@ export const acceptInvitation = async (req, res) => {
       return res.status(400).json({ error: "Password must be at least 8 characters." });
     }
 
-    // 1. Fetch the invitation
     const { data: inv, error: invError } = await supabase
       .from("invitations")
       .select("*")
@@ -47,7 +46,6 @@ export const acceptInvitation = async (req, res) => {
       return res.status(400).json({ error: "This invitation is no longer pending." });
     }
 
-    // 2. Fetch default policy for the user's leaves
     const currentYear = new Date().getFullYear();
     let defaultPolicy = { sick_leaves: 0, casual_leaves: 0, floater_leaves: 0 };
     const { data: policyData } = await supabase
@@ -68,7 +66,6 @@ export const acceptInvitation = async (req, res) => {
       if (fallback) defaultPolicy = fallback;
     }
 
-    // 3. Create Supabase Auth User
     const { data: authData, error: authError } = await supabase.auth.admin.createUser({
       email: inv.email,
       password: password,
@@ -83,7 +80,6 @@ export const acceptInvitation = async (req, res) => {
 
     const normalizedRole = (inv.role ?? "employee").toLowerCase();
 
-    // 4. Create User Record in Database
     const { error: dbError } = await supabase
       .from("users")
       .insert({
@@ -99,7 +95,6 @@ export const acceptInvitation = async (req, res) => {
       });
 
     if (dbError) {
-      // Revert user if DB fails
       await supabase.auth.admin.deleteUser(userId);
       return res.status(500).json({
         error: dbError.message,
@@ -107,7 +102,6 @@ export const acceptInvitation = async (req, res) => {
       });
     }
 
-    // 5. Update invitation status
     await supabase
       .from("invitations")
       .update({ status: "accepted", updated_at: new Date().toISOString() })
