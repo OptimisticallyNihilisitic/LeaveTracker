@@ -9,17 +9,15 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
-const OTP_TTL_SECONDS = 600; // 10 minutes
+const OTP_TTL_SECONDS = 600;
 const MAX_ATTEMPTS = 5;
 
-/** Generate a 6-digit OTP */
 const generateOtp = () => String(Math.floor(100000 + Math.random() * 900000));
 
-/** Create a fresh anon Supabase client (not the service-role one) */
 const makeAnonClient = () =>
   createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY);
 
-// ─── Step 1: Validate credentials → generate & send OTP ──────────────────────
+// Validate credentials -> generate & send OTP
 export const initiateLogin = async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -28,7 +26,6 @@ export const initiateLogin = async (req, res) => {
       return res.status(400).json({ error: 'email and password are required' });
     }
 
-    // Validate credentials via Supabase
     const anonClient = makeAnonClient();
     const { data: authData, error: authError } = await anonClient.auth.signInWithPassword({
       email,
@@ -39,18 +36,16 @@ export const initiateLogin = async (req, res) => {
       return res.status(401).json({ error: 'Invalid email or password' });
     }
 
-    // Sign out immediately — session is not granted until OTP is verified
+    //session logout for mfa
     await anonClient.auth.signOut();
 
-    // Generate OTP and persist in Redis
     const otp = generateOtp();
     const otpKey = `otp:${email}`;
     const attemptsKey = `otp_attempts:${email}`;
 
     await redis.set(otpKey, otp, { ex: OTP_TTL_SECONDS });
-    await redis.del(attemptsKey); // reset any leftover failure counter
+    await redis.del(attemptsKey); 
 
-    // Email OTP to user's alias
     await sendOtpEmail(email, otp, 'login');
 
     return res.json({ message: 'OTP sent to your registered email' });
@@ -60,7 +55,7 @@ export const initiateLogin = async (req, res) => {
   }
 };
 
-// ─── Step 2: Verify OTP → return real session tokens ─────────────────────────
+//Verify OTP -> return real session tokens
 export const verifyOtp = async (req, res) => {
   try {
     const { email, password, otp } = req.body;

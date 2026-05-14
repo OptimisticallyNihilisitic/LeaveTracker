@@ -8,16 +8,24 @@ import HolidayCalendar from "./pages/HolidayCalendar";
 import LeaveApprovals from "./pages/LeaveApprovals";
 import HrApprovals from "./pages/HrApprovals";
 import AdminPanel from "./pages/AdminPanel";
+import AdminUsers       from "./pages/admin/AdminUsers";
+import AdminInvitations from "./pages/admin/AdminInvitations";
+import AdminHierarchy   from "./pages/admin/AdminHierarchy";
+import AdminPolicy      from "./pages/admin/AdminPolicy";
+import AdminHolidays    from "./pages/admin/AdminHolidays";
 import ChangePassword from "./pages/ChangePassword";
 import InviteSetup from "./pages/InviteSetup";
 import ForgotPassword from "./pages/ForgotPassword";
+import LeaveCalendar from "./pages/LeaveCalendar";
+import ReduxAuthBridge from "./store/ReduxAuthBridge";
 import { useState, useEffect, useRef } from "react";
 
 
 type Page =
   | "dashboard" | "apply-leave" | "leaves"
   | "holiday-calendar" | "leave-approvals" | "hr-approvals"
-  | "admin-panel" | "change-password";
+  | "admin-panel" | "change-password" | "leave-calendar"
+  | "admin-users" | "admin-invitations" | "admin-hierarchy" | "admin-policy" | "admin-holidays";
 
 // Pages that deep-links from emails can target
 const VALID_DEEP_LINK_PAGES: Record<string, string> = {
@@ -107,17 +115,21 @@ function AppInner() {
   
   if (!user) return <Login />;
 
-  const activePage = currentPage === "dashboard" && user.role === "admin" ? "admin-panel" : currentPage;
+  const activePage = currentPage === "dashboard" && user.role === "admin" ? "admin-users" : currentPage;
+
+  const ADMIN_PAGES = new Set(["admin-users", "admin-invitations", "admin-hierarchy", "admin-policy", "admin-holidays"]);
 
   const handleNavigate = (page: string) => {
     // Guard manager-only pages
     if (page === "leave-approvals" && user.role !== "manager") return;
     // Guard HR-only pages
     if (page === "hr-approvals" && user.role !== "hr") return;
-    // Guard admin-only pages
-    if (page === "admin-panel" && user.role !== "admin") return;
+    // Guard admin-only pages (legacy panel + new sub-pages)
+    if ((page === "admin-panel" || ADMIN_PAGES.has(page)) && user.role !== "admin") return;
     // Guard employee-only pages from admin
-    if (user.role === "admin" && page !== "admin-panel" && page !== "change-password") return;
+    if (user.role === "admin" && page !== "admin-panel" && !ADMIN_PAGES.has(page) && page !== "change-password") return;
+    // Calendar available to all non-admin roles
+    if (page === "leave-calendar" && user.role === "admin") return;
     setCurrentPage(page as Page);
   };
 
@@ -127,9 +139,15 @@ function AppInner() {
       case "apply-leave":           return (user.role === "employee" || user.role === "manager" || user.role === "hr") ? <ApplyLeave /> : <Dashboard />;
       case "leaves":                return <Leaves />;
       case "holiday-calendar":      return <HolidayCalendar />;
+      case "leave-calendar":        return user.role !== "admin" ? <LeaveCalendar /> : <Dashboard />;
       case "leave-approvals":       return user.role === "manager" ? <LeaveApprovals /> : <Dashboard />;
       case "hr-approvals":          return user.role === "hr" ? <HrApprovals /> : <Dashboard />;
       case "admin-panel":           return user.role === "admin" ? <AdminPanel /> : <Dashboard />;
+      case "admin-users":           return user.role === "admin" ? <AdminUsers /> : <Dashboard />;
+      case "admin-invitations":     return user.role === "admin" ? <AdminInvitations /> : <Dashboard />;
+      case "admin-hierarchy":       return user.role === "admin" ? <AdminHierarchy /> : <Dashboard />;
+      case "admin-policy":          return user.role === "admin" ? <AdminPolicy /> : <Dashboard />;
+      case "admin-holidays":        return user.role === "admin" ? <AdminHolidays /> : <Dashboard />;
       case "change-password":       return <ChangePassword />;
       default:                      return <Dashboard />;
     }
@@ -145,6 +163,7 @@ function AppInner() {
 export default function App() {
   return (
     <AuthProvider>
+      <ReduxAuthBridge />
       <AppInner />
     </AuthProvider>
   );

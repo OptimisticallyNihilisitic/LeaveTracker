@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext";
-import { getTeamLeaves, reviewLeave } from "../api/leave";
+import { reviewLeave } from "../api/leave";
+import { useAppDispatch, useAppSelector } from "../store/hooks";
+import { fetchTeamLeaves, selectTeamLeaves, selectApprovalsStatus, invalidateApprovals } from "../store/leaveApprovalsSlice";
 import Pagination from "../components/Pagination";
 
 type LeaveStatus = "pending_manager" | "pending_hr" | "approved" | "rejected";
@@ -22,8 +24,10 @@ type FilterStatus = "all" | LeaveStatus;
 
 export default function LeaveApprovals() {
   const { token } = useAuth();
-  const [requests, setRequests] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const dispatch = useAppDispatch();
+  const requests = useAppSelector(selectTeamLeaves);
+  const status = useAppSelector(selectApprovalsStatus);
+  const loading = status === "loading";
   const [filter, setFilter] = useState<FilterStatus>("all");
   const [search, setSearch] = useState("");
   const [confirmModal, setConfirmModal] = useState<{ id: string; action: "approved" | "rejected" } | null>(null);
@@ -34,11 +38,14 @@ export default function LeaveApprovals() {
 
   const fetchLeaves = () => {
     if (!token) return;
-    setLoading(true);
-    getTeamLeaves(token).then((res: any) => { setRequests(res); setCurrentPage(1); }).catch(console.error).finally(() => setLoading(false));
+    dispatch(invalidateApprovals());
+    dispatch(fetchTeamLeaves({ token, force: true }));
+    setCurrentPage(1);
   };
 
-  useEffect(() => { fetchLeaves(); }, [token]);
+  useEffect(() => {
+    if (token) dispatch(fetchTeamLeaves({ token }));
+  }, [token, dispatch]);
 
   const handleReview = async () => {
     if (!confirmModal) return;

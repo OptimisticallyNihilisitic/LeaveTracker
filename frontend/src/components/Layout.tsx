@@ -11,6 +11,7 @@ const employeeNav: NavItem[] = [
   { kind: "section", label: "Leave Management" },
   { kind: "link", label: "Apply for Leave", page: "apply-leave" },
   { kind: "link", label: "Leaves", page: "leaves" },
+  { kind: "link", label: "Leave Calendar", page: "leave-calendar" },
   { kind: "link", label: "Holiday Calendar", page: "holiday-calendar" },
   { kind: "section", label: "Account" },
   { kind: "link", label: "Change Password", page: "change-password" },
@@ -22,6 +23,7 @@ const managerNav: NavItem[] = [
   { kind: "section", label: "Leave Management" },
   { kind: "link", label: "Apply for Leave", page: "apply-leave" },
   { kind: "link", label: "Leaves", page: "leaves" },
+  { kind: "link", label: "Leave Calendar", page: "leave-calendar" },
   { kind: "link", label: "Holiday Calendar", page: "holiday-calendar" },
   { kind: "link", label: "Leave Approvals", page: "leave-approvals" },
   { kind: "section", label: "Account" },
@@ -34,6 +36,7 @@ const hrNav: NavItem[] = [
   { kind: "section", label: "Leave Management" },
   { kind: "link", label: "HR Approvals", page: "hr-approvals" },
   { kind: "link", label: "Leaves", page: "leaves" },
+  { kind: "link", label: "Leave Calendar", page: "leave-calendar" },
   { kind: "link", label: "Holiday Calendar", page: "holiday-calendar" },
   { kind: "section", label: "Account" },
   { kind: "link", label: "Change Password", page: "change-password" },
@@ -41,9 +44,13 @@ const hrNav: NavItem[] = [
 
 const adminNav: NavItem[] = [
   { kind: "section", label: "Administration" },
-  { kind: "link", label: "Admin Panel", page: "admin-panel" },
+  { kind: "link", label: "Users",               page: "admin-users" },
+  { kind: "link", label: "Invitations",         page: "admin-invitations" },
+  { kind: "link", label: "Reporting Hierarchy", page: "admin-hierarchy" },
+  { kind: "link", label: "Leave Policy",        page: "admin-policy" },
+  { kind: "link", label: "Holidays",            page: "admin-holidays" },
   { kind: "section", label: "Account" },
-  { kind: "link", label: "Change Password", page: "change-password" },
+  { kind: "link", label: "Change Password",     page: "change-password" },
 ];
 
 interface LayoutProps {

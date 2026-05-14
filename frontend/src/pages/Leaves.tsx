@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext";
-import { getMyLeaves, cancelLeave } from "../api/leave";
+import { cancelLeave } from "../api/leave";
+import { useAppDispatch, useAppSelector } from "../store/hooks";
+import { fetchMyLeaves, selectMyLeaves, selectLeavesStatus, invalidateLeaves } from "../store/leavesSlice";
 import Pagination from "../components/Pagination";
 
 const SearchInput = ({ value, onChange, placeholder }: { value: string; onChange: (v: string) => void; placeholder: string }) => (
@@ -60,8 +62,10 @@ const matchLeave = (l: any, q: string, formatDate: (d: string) => string) => {
 
 export default function Leaves() {
   const { token } = useAuth();
-  const [leaves, setLeaves] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const dispatch = useAppDispatch();
+  const leaves = useAppSelector(selectMyLeaves);
+  const status = useAppSelector(selectLeavesStatus);
+  const loading = status === "loading";
   const [cancelling, setCancelling] = useState<string | null>(null);
 
   const [pendingPage, setPendingPage] = useState(1);
@@ -73,18 +77,15 @@ export default function Leaves() {
 
   const fetchLeaves = () => {
     if (!token) return;
-    setLoading(true);
-    getMyLeaves(token)
-      .then((res: any) => {
-        setLeaves(res);
-        setPendingPage(1);
-        setHistoryPage(1);
-      })
-      .catch(console.error)
-      .finally(() => setLoading(false));
+    dispatch(invalidateLeaves());
+    dispatch(fetchMyLeaves({ token, force: true }));
+    setPendingPage(1);
+    setHistoryPage(1);
   };
 
-  useEffect(() => { fetchLeaves(); }, [token]);
+  useEffect(() => {
+    if (token) dispatch(fetchMyLeaves({ token }));
+  }, [token, dispatch]);
 
   const handleCancel = async (id: string) => {
     setCancelling(id);

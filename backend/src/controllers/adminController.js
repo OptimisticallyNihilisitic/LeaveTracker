@@ -1,7 +1,6 @@
 import * as adminService from "../services/adminService.js";
 
 //Users 
-
 export const getAllUsers = async (req, res) => {
   try {
     const data = await adminService.getAllUsers();

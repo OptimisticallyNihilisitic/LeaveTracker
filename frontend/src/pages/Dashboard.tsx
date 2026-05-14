@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useAuth } from "../context/AuthContext";
-import { getMyLeaves } from "../api/leave";
-import type { LeaveRequest } from "../types";
+import { useAppDispatch, useAppSelector } from "../store/hooks";
+import { fetchMyLeaves, selectMyLeaves, selectLeavesStatus, invalidateLeaves } from "../store/leavesSlice";
 
 const StatCard = ({ title, value, subtitle, highlight }: {
   title: string; value: string | number; subtitle: string; highlight?: boolean;
@@ -15,19 +15,20 @@ const StatCard = ({ title, value, subtitle, highlight }: {
 
 export default function Dashboard() {
   const { user, token } = useAuth();
-  const [leaves, setLeaves] = useState<LeaveRequest[]>([]);
-  const [loading, setLoading] = useState(true);
+  const dispatch = useAppDispatch();
+  const leaves = useAppSelector(selectMyLeaves);
+  const status = useAppSelector(selectLeavesStatus);
+  const loading = status === "loading";
 
   const fetchData = () => {
     if (!token) return;
-    setLoading(true);
-    getMyLeaves(token)
-      .then((data) => setLeaves(data as LeaveRequest[]))
-      .catch(console.error)
-      .finally(() => setLoading(false));
+    dispatch(invalidateLeaves());
+    dispatch(fetchMyLeaves({ token, force: true }));
   };
 
-  useEffect(() => { fetchData(); }, [token]);
+  useEffect(() => {
+    if (token) dispatch(fetchMyLeaves({ token }));
+  }, [token, dispatch]);
 
   const pendingLeaves = leaves.filter((l) => l.status === "pending_manager" || l.status === "pending_hr");
   const takenThisMonth = leaves.filter((l) => {

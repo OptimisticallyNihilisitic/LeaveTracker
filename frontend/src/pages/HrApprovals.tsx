@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext";
-import { getHrLeaves, hrReviewLeave } from "../api/leave";
+import { hrReviewLeave } from "../api/leave";
+import { useAppDispatch, useAppSelector } from "../store/hooks";
+import { fetchHrLeaves, selectHrLeaves, selectHrApprovalsStatus, invalidateHrApprovals } from "../store/hrApprovalsSlice";
 import Pagination from "../components/Pagination";
 
 type LeaveStatus = "pending_manager" | "pending_hr" | "approved" | "rejected";
@@ -22,8 +24,10 @@ type FilterStatus = "all" | LeaveStatus;
 
 export default function HrApprovals() {
   const { token } = useAuth();
-  const [requests, setRequests] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const dispatch = useAppDispatch();
+  const requests = useAppSelector(selectHrLeaves);
+  const status = useAppSelector(selectHrApprovalsStatus);
+  const loading = status === "loading";
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [filter, setFilter] = useState<FilterStatus>("pending_hr");
   const [search, setSearch] = useState("");
@@ -38,17 +42,17 @@ export default function HrApprovals() {
 
   const fetchLeaves = () => {
     if (!token) return;
-    setLoading(true);
     setFetchError(null);
-    getHrLeaves(token)
-      .then((res: any) => { setRequests(Array.isArray(res) ? res : []); setCurrentPage(1); })
-      .catch((err: any) => setFetchError(err.message ?? "Failed to load leave requests"))
-      .finally(() => setLoading(false));
+    dispatch(invalidateHrApprovals());
+    dispatch(fetchHrLeaves({ token, force: true }))
+      .unwrap()
+      .catch((err: any) => setFetchError(err?.message ?? "Failed to load leave requests"));
+    setCurrentPage(1);
   };
 
   useEffect(() => {
-    fetchLeaves();
-  }, [token]);
+    if (token) dispatch(fetchHrLeaves({ token }));
+  }, [token, dispatch]);
 
   const handleReview = async () => {
     if (!confirmModal) return;
