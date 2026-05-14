@@ -86,7 +86,7 @@ export default function ApplyLeave() {
 
         // Skip mandatory holidays
         const isMandatory = holidays.some(
-          (h: any) => !h.is_floater && new Date(h.date).toDateString() === d.toDateString()
+          (h) => !h.is_floater && new Date(h.date).toDateString() === d.toDateString()
         );
         if (isMandatory) continue;
 
@@ -96,7 +96,7 @@ export default function ApplyLeave() {
         // Floater validation
         if (leaveType === "floater") {
           const isFloater = holidays.some(
-            (h: any) => h.is_floater && new Date(h.date).toDateString() === d.toDateString()
+            (h) => h.is_floater && new Date(h.date).toDateString() === d.toDateString()
           );
           if (!isFloater) invalidFloaterFound = true;
         }
@@ -119,10 +119,6 @@ export default function ApplyLeave() {
     }
     if (leaveType === "floater" && invalidFloaterFound) {
       setError("One or more selected days are not designated floater holidays."); return;
-    }
-
-    if((new Date()).getTime() - (new Date(from)).getTime() > 7) {
-      setError(`Attendance cannot be regularized after 7 days. Please contact the admin.`); return;
     }
 
     if (leaveType === "sick") {

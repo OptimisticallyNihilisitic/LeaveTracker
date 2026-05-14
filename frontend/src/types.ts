@@ -25,6 +25,7 @@ export interface Holiday {
   policy_id: string;
   name: string;
   date: string;
+  is_floater: boolean;
   policies?: { year: number };
 }
 
@@ -53,10 +54,9 @@ export interface AttendanceRecord {
   id: string;
   user_id: string;
   date: string;
-  status: "present" | "absent" | "late" | "half-day" | "regularized";
+  status: "present" | "absent" | "late" | "half-day";
   sign_in_time: string | null;
   sign_out_time: string | null;
-  regularization_reason: string | null;
   users?: {
     name: string;
     email: string;

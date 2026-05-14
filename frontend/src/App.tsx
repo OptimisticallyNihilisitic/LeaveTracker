@@ -7,7 +7,6 @@ import Leaves from "./pages/Leaves";
 import HolidayCalendar from "./pages/HolidayCalendar";
 import LeaveApprovals from "./pages/LeaveApprovals";
 import HrApprovals from "./pages/HrApprovals";
-import AdminPanel from "./pages/AdminPanel";
 import AdminUsers       from "./pages/admin/AdminUsers";
 import AdminInvitations from "./pages/admin/AdminInvitations";
 import AdminHierarchy   from "./pages/admin/AdminHierarchy";
@@ -24,7 +23,7 @@ import { useState, useEffect, useRef } from "react";
 type Page =
   | "dashboard" | "apply-leave" | "leaves"
   | "holiday-calendar" | "leave-approvals" | "hr-approvals"
-  | "admin-panel" | "change-password" | "leave-calendar"
+  | "change-password" | "leave-calendar"
   | "admin-users" | "admin-invitations" | "admin-hierarchy" | "admin-policy" | "admin-holidays";
 
 // Pages that deep-links from emails can target
@@ -124,10 +123,10 @@ function AppInner() {
     if (page === "leave-approvals" && user.role !== "manager") return;
     // Guard HR-only pages
     if (page === "hr-approvals" && user.role !== "hr") return;
-    // Guard admin-only pages (legacy panel + new sub-pages)
-    if ((page === "admin-panel" || ADMIN_PAGES.has(page)) && user.role !== "admin") return;
+    // Guard admin-only pages
+    if (ADMIN_PAGES.has(page) && user.role !== "admin") return;
     // Guard employee-only pages from admin
-    if (user.role === "admin" && page !== "admin-panel" && !ADMIN_PAGES.has(page) && page !== "change-password") return;
+    if (user.role === "admin" && !ADMIN_PAGES.has(page) && page !== "change-password") return;
     // Calendar available to all non-admin roles
     if (page === "leave-calendar" && user.role === "admin") return;
     setCurrentPage(page as Page);
@@ -142,7 +141,6 @@ function AppInner() {
       case "leave-calendar":        return user.role !== "admin" ? <LeaveCalendar /> : <Dashboard />;
       case "leave-approvals":       return user.role === "manager" ? <LeaveApprovals /> : <Dashboard />;
       case "hr-approvals":          return user.role === "hr" ? <HrApprovals /> : <Dashboard />;
-      case "admin-panel":           return user.role === "admin" ? <AdminPanel /> : <Dashboard />;
       case "admin-users":           return user.role === "admin" ? <AdminUsers /> : <Dashboard />;
       case "admin-invitations":     return user.role === "admin" ? <AdminInvitations /> : <Dashboard />;
       case "admin-hierarchy":       return user.role === "admin" ? <AdminHierarchy /> : <Dashboard />;

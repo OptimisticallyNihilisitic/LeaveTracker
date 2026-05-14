@@ -15,6 +15,30 @@ export const getAllUsers = async () => {
 
 
 export const updateUser = async (userId, updates) => {
+  // If demoting from manager → non-manager role, cascade side-effects
+  if (updates.role && updates.role !== "manager") {
+    const { data: current } = await supabase
+      .from("users")
+      .select("role")
+      .eq("id", userId)
+      .single();
+
+    if (current?.role === "manager") {
+      // 1. Unlink all subordinates
+      await supabase
+        .from("users")
+        .update({ manager_id: null })
+        .eq("manager_id", userId);
+
+      // 2. Re-route pending_manager leave requests → pending_hr
+      await supabase
+        .from("leave_requests")
+        .update({ manager_id: null, status: "pending_hr" })
+        .eq("manager_id", userId)
+        .eq("status", "pending_manager");
+    }
+  }
+
   const { data, error } = await supabase
     .from("users")
     .update({ ...updates, updated_at: new Date().toISOString() })
@@ -193,6 +217,28 @@ export const deleteUserWithAuth = async (userId) => {
     .from("invitations")
     .update({ manager_id: null })
     .eq("manager_id", userId);
+
+  // If the user being deleted is a manager, cascade side-effects before deletion
+  const { data: userToDelete } = await supabase
+    .from("users")
+    .select("role")
+    .eq("id", userId)
+    .single();
+
+  if (userToDelete?.role === "manager") {
+    // 1. Unlink all subordinates
+    await supabase
+      .from("users")
+      .update({ manager_id: null })
+      .eq("manager_id", userId);
+
+    // 2. Re-route pending_manager leave requests → pending_hr
+    await supabase
+      .from("leave_requests")
+      .update({ manager_id: null, status: "pending_hr" })
+      .eq("manager_id", userId)
+      .eq("status", "pending_manager");
+  }
 
   const { error: dbError } = await supabase
     .from("users")

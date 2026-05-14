@@ -42,8 +42,8 @@ export default function HolidayCalendar() {
   }, [token]);
 
   
-  const mandatory = holidays.filter((h: any) => !h.is_floater);
-  const floater = holidays.filter((h: any) => h.is_floater);
+  const mandatory = holidays.filter((h) => !h.is_floater);
+  const floater = holidays.filter((h) => h.is_floater);
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
