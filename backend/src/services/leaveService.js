@@ -254,7 +254,7 @@ export const getHrLeaves = async () => {
     historyLeaves = hd || [];
   }
 
-  // Step 4: Merge, deduplicate
+ 
   const seen = new Set();
   const allLeaves = [...(pendingLeaves || []), ...historyLeaves].filter((l) => {
     if (seen.has(l.id)) return false;
@@ -264,7 +264,6 @@ export const getHrLeaves = async () => {
 
   if (allLeaves.length === 0) return [];
 
-  // Step 5: Fetch employee details separately (avoids ambiguous FK error)
   const userIds = [...new Set(allLeaves.map((l) => l.user_id))];
   const { data: users, error: usersError } = await supabase
     .from("users")
@@ -274,7 +273,6 @@ export const getHrLeaves = async () => {
   if (usersError) throw usersError;
   const userMap = Object.fromEntries((users || []).map((u) => [u.id, u]));
 
-  // Step 6: Attach user info and sort
   return allLeaves
     .map((l) => ({ ...l, users: userMap[l.user_id] ?? null }))
     .sort((a, b) => new Date(b.applied_at).getTime() - new Date(a.applied_at).getTime());
@@ -292,6 +290,7 @@ export const hrReviewLeave = async ({ leaveId, hrId, status, comments }) => {
 
   const finalStatus = status === STATUS.APPROVED ? STATUS.APPROVED : STATUS.REJECTED;
 
+  //Both comments : Manager + HR
   const mergedComments = (() => {
     const hrLine = comments ? `HR: ${comments}` : null;
     if (!existing.comments && !hrLine) return null;

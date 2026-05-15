@@ -107,10 +107,12 @@ export const createUserWithAuth = async (req, res) => {
   try {
     const { email, password, name, employee_id, role, manager_id } = req.body;
 
+    //Missing values:
     if (!email || !password || !name || !employee_id) {
       return res.status(400).json({ error: "email, password, name and employee_id are required" });
     }
 
+  //Password rules:
     if (password.length < 8) {
       return res.status(400).json({ error: "Password must be at least 8 characters" });
     }
@@ -120,6 +122,7 @@ export const createUserWithAuth = async (req, res) => {
       return res.status(400).json({ error: "role must be employee, manager, hr or admin" });
     }
 
+    //Email domain:
     if (!email.endsWith("@test.com")) {
       return res.status(400).json({ error: "Email must end with @test.com (company specific domain)" });
     }
