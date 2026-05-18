@@ -66,6 +66,7 @@ export const acceptInvitation = async (req, res) => {
       if (fallback) defaultPolicy = fallback;
     }
 
+    //For supabase auth:
     const { data: authData, error: authError } = await supabase.auth.admin.createUser({
       email: inv.email,
       password: password,
@@ -92,10 +93,10 @@ export const acceptInvitation = async (req, res) => {
         sick_leaves: defaultPolicy.sick_leaves,
         casual_leaves: defaultPolicy.casual_leaves,
         floater_leaves: defaultPolicy.floater_leaves,
-      });
+      }); 
 
     if (dbError) {
-      await supabase.auth.admin.deleteUser(userId);
+      await supabase.auth.admin.deleteUser(userId); //To avoid orphanaged accounts
       return res.status(500).json({
         error: dbError.message,
         details: { role: normalizedRole },
@@ -111,4 +112,4 @@ export const acceptInvitation = async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: "Server error accepting invitation." });
   }
-};
+}; 
