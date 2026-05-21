@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useAuth } from "../../context/AuthContext";
 import {
   getAllUsers,
-  getInvitations, createInvitation, cancelInvitation, resendInvitation,
+  getInvitations, createInvitation, cancelInvitation, resendInvitation, createBulkInvitations,
   type InvitationRecord,
 } from "../../api/admin";
 import Pagination from "../../components/Pagination";
@@ -23,6 +23,8 @@ export default function AdminInvitations() {
   const [invitations, setInvitations]       = useState<InvitationRecord[]>([]);
   const [invitationsLoading, setInvitationsLoading] = useState(true);
   const [showInviteForm, setShowInviteForm] = useState(false);
+  const [showBulkInviteForm, setShowBulkInviteForm] = useState(false);
+  const [bulkInviteLoading, setBulkInviteLoading] = useState(false);
   const [inviteForm, setInviteForm]         = useState({
     name: "", email: "", employee_id: "",
     role: "employee" as "employee" | "manager" | "hr" | "admin",
@@ -103,6 +105,67 @@ export default function AdminInvitations() {
     }
   };
 
+  const handleBulkUpload = (file: File) => {
+    if (!file) return;
+    setBulkInviteLoading(true);
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      const text = e.target?.result;
+      if (typeof text !== "string") {
+        setBulkInviteLoading(false);
+        return;
+      }
+      const lines = text.split("\n").map(l => l.trim()).filter(l => l);
+      if (lines.length === 0) {
+        notify("CSV is empty", true);
+        setBulkInviteLoading(false);
+        return;
+      }
+      
+      const parsedInvs = [];
+      let startIdx = 0;
+      if (lines[0].toLowerCase().includes("name") || lines[0].toLowerCase().includes("email")) {
+        startIdx = 1;
+      }
+      for (let i = startIdx; i < lines.length; i++) {
+        const parts = lines[i].split(",").map(p => p.trim());
+        if (parts.length >= 4) {
+          parsedInvs.push({
+            name: parts[0],
+            employee_id: parts[1],
+            role: parts[2] || "employee",
+            email: parts[3]
+          });
+        }
+      }
+      
+      if (parsedInvs.length === 0) {
+        notify("No valid rows found in CSV", true);
+        setBulkInviteLoading(false);
+        return;
+      }
+
+      try {
+        const res = await createBulkInvitations(token!, { invitations: parsedInvs });
+        notify(`Bulk invite complete: ${res.successful} sent, ${res.failed} failed.`);
+        if (res.errors && res.errors.length > 0) {
+          console.error("Bulk invite errors:", res.errors);
+        }
+        setShowBulkInviteForm(false);
+        fetchInvitations();
+      } catch (err: any) {
+        notify(err.message, true);
+      } finally {
+        setBulkInviteLoading(false);
+      }
+    };
+    reader.onerror = () => {
+      notify("Failed to read file", true);
+      setBulkInviteLoading(false);
+    };
+    reader.readAsText(file);
+  };
+
   const managerOptions = users.filter(u => u.role === "manager" || u.role === "hr" || u.role === "admin");
 
   const matchQ = (q: string, ...fields: (string | number | null | undefined)[]) =>
@@ -145,7 +208,11 @@ export default function AdminInvitations() {
               <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" /></svg>
               <input type="text" value={invitationsSearch} onChange={e => { setInvitationsSearch(e.target.value); setInvitationsPage(1); }} placeholder="Search invitations..." className="pl-9 pr-4 py-2 w-48 border border-slate-200 rounded-xl text-sm text-slate-700 placeholder-slate-400 bg-white focus:outline-none focus:ring-2 focus:ring-slate-300" />
             </div>
-            <button onClick={() => setShowInviteForm(v => !v)}
+            <button onClick={() => { setShowBulkInviteForm(v => !v); setShowInviteForm(false); }}
+              className="bg-blue-500 hover:bg-blue-600 text-white text-sm font-semibold px-4 py-2 rounded-xl transition-colors shadow-sm whitespace-nowrap">
+              {showBulkInviteForm ? "Cancel" : "Upload CSV"}
+            </button>
+            <button onClick={() => { setShowInviteForm(v => !v); setShowBulkInviteForm(false); }}
               className="bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-semibold px-4 py-2 rounded-xl transition-colors shadow-sm whitespace-nowrap">
               {showInviteForm ? "Cancel" : "+ Invite Employee"}
             </button>
@@ -199,6 +266,29 @@ export default function AdminInvitations() {
               className="bg-emerald-500 hover:bg-emerald-600 disabled:opacity-60 text-white font-semibold px-6 py-2.5 rounded-xl transition-colors shadow-sm">
               {inviteFormLoading ? "Sending..." : "Send Invitation"}
             </button>
+          </div>
+        )}
+
+        {showBulkInviteForm && (
+          <div className="bg-slate-50 rounded-2xl border border-slate-200 p-6 space-y-4">
+            <h4 className="font-semibold text-slate-700">Bulk Invite via CSV</h4>
+            <p className="text-sm text-slate-500">
+              Upload a CSV file with the following column structure (headers optional, but recommended):
+              <br /><code className="bg-slate-200 px-1 py-0.5 rounded">emp name, emp id, role, email</code>
+            </p>
+            <div>
+              <input type="file" accept=".csv"
+                onChange={(e) => {
+                  if (e.target.files && e.target.files.length > 0) {
+                    handleBulkUpload(e.target.files[0]);
+                    e.target.value = '';
+                  }
+                }}
+                disabled={bulkInviteLoading}
+                className="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 transition-colors cursor-pointer"
+              />
+            </div>
+            {bulkInviteLoading && <p className="text-sm text-blue-600 font-semibold">Processing CSV data and sending invitations...</p>}
           </div>
         )}
 

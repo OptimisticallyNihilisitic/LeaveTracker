@@ -1,0 +1,427 @@
+import { useEffect, useState } from "react";
+import { useAuth } from "../context/AuthContext";
+import { adminReviewLeave } from "../api/leave";
+import { useAppDispatch, useAppSelector } from "../store/hooks";
+import { fetchAdminLeaves, selectAdminLeaves, selectAdminApprovalsStatus, invalidateAdminApprovals } from "../store/adminApprovalsSlice";
+import Pagination from "../components/Pagination";
+import type { LeaveRequest } from "../types";
+
+type LeaveStatus = "pending_manager" | "pending_admin" | "approved" | "rejected";
+
+const STATUS_STYLES: Record<LeaveStatus, string> = {
+  pending_manager: "bg-amber-100 text-amber-700",
+  pending_admin: "bg-fuchsia-100 text-fuchsia-700",
+  approved: "bg-emerald-100 text-emerald-700",
+  rejected: "bg-rose-100 text-rose-600",
+};
+
+const LEAVE_TYPE_DOT: Record<string, string> = {
+  casual: "bg-emerald-400",
+  sick: "bg-rose-400",
+  floater: "bg-amber-400",
+};
+
+type FilterStatus = "all" | LeaveStatus;
+
+export default function AdminApprovals() {
+  const { token } = useAuth();
+  const dispatch = useAppDispatch();
+  const requests = useAppSelector(selectAdminLeaves);
+  const status = useAppSelector(selectAdminApprovalsStatus);
+  const loading = status === "loading";
+  const [fetchError, setFetchError] = useState<string | null>(null);
+  const [filter, setFilter] = useState<FilterStatus>("pending_admin");
+  const [search, setSearch] = useState("");
+  const [confirmModal, setConfirmModal] = useState<{
+    id: string;
+    action: "approved" | "rejected";
+  } | null>(null);
+  const [comments, setComments] = useState("");
+  const [reviewing, setReviewing] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(5);
+
+  const fetchLeaves = () => {
+    if (!token) return;
+    setFetchError(null);
+    dispatch(invalidateAdminApprovals());
+    dispatch(fetchAdminLeaves({ token, force: true }))
+      .unwrap()
+      .catch((err: any) => setFetchError(err?.message ?? "Failed to load leave requests"));
+    setCurrentPage(1);
+  };
+
+  useEffect(() => {
+    if (token) dispatch(fetchAdminLeaves({ token }));
+  }, [token, dispatch]);
+
+  const handleReview = async () => {
+    if (!confirmModal) return;
+    setReviewing(true);
+    try {
+      await adminReviewLeave(token!, confirmModal.id, {
+        status: confirmModal.action,
+        comments,
+      });
+      setConfirmModal(null);
+      setComments("");
+      fetchLeaves();
+    } catch (err: any) {
+      alert(err.message);
+    } finally {
+      setReviewing(false);
+    }
+  };
+
+  // Admin sees all final statuses + pending_admin
+  const allStatuses: LeaveStatus[] = ["pending_admin", "approved", "rejected"];
+
+  const filtered = requests.filter((r: LeaveRequest) => {
+    const matchesFilter = filter === "all" || r.status === filter;
+    const matchesSearch =
+      r.users?.name?.toLowerCase().includes(search.toLowerCase()) ||
+      r.leave_type?.toLowerCase().includes(search.toLowerCase());
+    return matchesFilter && matchesSearch;
+  });
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const pagedFiltered = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+
+  const handleFilterChange = (tab: FilterStatus) => { setFilter(tab); setCurrentPage(1); };
+  const handleSearchChange = (val: string) => { setSearch(val); setCurrentPage(1); };
+
+  const counts: Record<FilterStatus, number> = {
+    all: requests.length,
+    pending_manager: requests.filter((r: LeaveRequest) => r.status === "pending_manager").length,
+    pending_admin: requests.filter((r: LeaveRequest) => r.status === "pending_admin").length,
+    approved: requests.filter((r: LeaveRequest) => r.status === "approved").length,
+    rejected: requests.filter((r: LeaveRequest) => r.status === "rejected").length,
+  };
+
+  const filterTabs: FilterStatus[] = ["all", "pending_admin", "approved", "rejected"];
+  const formatDate = (d: string) =>
+    new Date(d).toLocaleDateString("en-IN", { day: "numeric", month: "short" });
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-start justify-between">
+        <div>
+          <h2 className="text-xl font-bold text-slate-800">Admin Approvals</h2>
+          <p className="text-sm text-slate-500 mt-0.5">
+            Review and finalise leave requests forwarded from HRs or Admins without managers
+          </p>
+        </div>
+        <button
+          onClick={fetchLeaves}
+          disabled={loading}
+          className="flex items-center gap-2 text-sm font-semibold text-slate-600 hover:text-slate-800 border border-slate-200 hover:border-slate-300 px-4 py-2 rounded-xl transition-colors bg-white hover:bg-slate-50 disabled:opacity-50 shadow-sm"
+        >
+          <svg className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+          {loading ? 'Refreshing...' : 'Refresh'}
+        </button>
+      </div>
+
+      {fetchError && (
+        <div className="px-4 py-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-600 text-sm font-medium">
+          Error: {fetchError}
+        </div>
+      )}
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {allStatuses.map((s) => (
+          <div
+            key={s}
+            onClick={() => setFilter(filter === s ? "all" : s)}
+            className={`rounded-2xl border p-5 cursor-pointer transition-all ${
+              filter === s
+                ? s === "pending_admin"
+                  ? "bg-fuchsia-50 border-fuchsia-300 shadow-sm"
+                  : s === "approved"
+                  ? "bg-emerald-50 border-emerald-300 shadow-sm"
+                  : "bg-rose-50 border-rose-300 shadow-sm"
+                : "bg-white border-slate-200 hover:border-slate-300"
+            }`}
+          >
+            <p
+              className={`text-sm font-semibold capitalize ${
+                s === "pending_admin"
+                  ? "text-fuchsia-600"
+                  : s === "approved"
+                  ? "text-emerald-600"
+                  : "text-rose-500"
+              }`}
+            >
+              {s.replace("_", " ")}
+            </p>
+            <p className="text-3xl font-bold text-slate-800 mt-1">{counts[s]}</p>
+            <p className="text-xs text-slate-400 mt-0.5">requests</p>
+          </div>
+        ))}
+        <div className="rounded-2xl border border-slate-200 bg-white p-5">
+          <p className="text-sm font-semibold text-slate-500">Total</p>
+          <p className="text-3xl font-bold text-slate-800 mt-1">{counts.all}</p>
+          <p className="text-xs text-slate-400 mt-0.5">all requests</p>
+        </div>
+      </div>
+
+      <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
+        <div className="flex gap-1.5 bg-slate-100 rounded-xl p-1">
+          {filterTabs.map((tab) => (
+            <button
+              key={tab}
+              onClick={() => handleFilterChange(tab)}
+              className={`px-4 py-1.5 rounded-lg text-sm font-semibold capitalize transition-all ${
+                filter === tab
+                  ? "bg-white text-slate-800 shadow-sm"
+                  : "text-slate-500 hover:text-slate-700"
+              }`}
+            >
+              {tab === "all" ? "all" : tab.replace("_", " ")}
+              <span
+                className={`ml-1.5 text-xs px-1.5 py-0.5 rounded-full ${
+                  filter === tab
+                    ? "bg-slate-100 text-slate-600"
+                    : "bg-slate-200 text-slate-500"
+                }`}
+              >
+                {counts[tab]}
+              </span>
+            </button>
+          ))}
+        </div>
+        <input
+          type="text"
+          placeholder="Search employee or leave type..."
+          value={search}
+          onChange={(e) => handleSearchChange(e.target.value)}
+          className="w-full sm:w-64 px-4 py-2 border border-slate-200 rounded-xl text-sm text-slate-700 placeholder-slate-400 bg-white focus:outline-none focus:ring-2 focus:ring-fuchsia-400 focus:border-transparent"
+        />
+      </div>
+
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-slate-50 border-b border-slate-200">
+                {[
+                  "Employee",
+                  "Leave Type",
+                  "Duration",
+                  "Days",
+                  "Reason",
+                  "Applied On",
+                  "Manager Comments",
+                  "Status",
+                  "Action",
+                ].map((h) => (
+                  <th
+                    key={h}
+                    className="text-left px-5 py-3.5 text-xs font-bold uppercase tracking-wider text-slate-500 whitespace-nowrap"
+                  >
+                    {h}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {loading ? (
+                <tr>
+                  <td colSpan={9} className="px-5 py-12 text-center text-slate-400">
+                    Loading...
+                  </td>
+                </tr>
+              ) : filtered.length === 0 ? (
+                <tr>
+                  <td colSpan={9} className="px-5 py-12 text-center text-slate-400">
+                    No requests match your filter
+                  </td>
+                </tr>
+              ) : (
+                pagedFiltered.map((req: LeaveRequest) => (
+                  <tr key={req.id} className="hover:bg-slate-50 transition-colors">
+                    <td className="px-5 py-4">
+                      <p className="font-semibold text-slate-800">
+                        {req.users?.name ?? "—"}
+                      </p>
+                      <p className="text-xs text-slate-400 mt-0.5">
+                        {req.users?.email ?? ""}
+                      </p>
+                    </td>
+                    <td className="px-5 py-4">
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={`w-2 h-2 rounded-full shrink-0 ${
+                            LEAVE_TYPE_DOT[req.leave_type] ?? "bg-slate-400"
+                          }`}
+                        />
+                        <span className="text-slate-700 font-medium capitalize">
+                          {req.leave_type}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-5 py-4 text-slate-600 whitespace-nowrap">
+                      {req.start_date === req.end_date
+                        ? formatDate(req.start_date)
+                        : `${formatDate(req.start_date)} – ${formatDate(req.end_date)}`}
+                    </td>
+                    <td className="px-5 py-4">
+                      <span className="font-semibold text-slate-800">{req.days}</span>
+                      <span className="text-slate-400 ml-1 text-xs">
+                        day{req.days > 1 ? "s" : ""}
+                      </span>
+                    </td>
+                    <td className="px-5 py-4 text-slate-600 max-w-[140px] truncate">
+                      {req.reason ?? "—"}
+                    </td>
+                    <td className="px-5 py-4 text-slate-500 whitespace-nowrap">
+                      {formatDate(req.applied_at)}
+                    </td>
+                    <td className="px-5 py-4 text-slate-500 max-w-[140px] truncate italic text-xs">
+                      {req.comments ?? <span className="text-slate-300">None</span>}
+                    </td>
+                    <td className="px-5 py-4">
+                      <span
+                        className={`text-xs font-semibold px-2.5 py-1 rounded-full capitalize ${
+                          STATUS_STYLES[req.status as LeaveStatus]
+                        }`}
+                      >
+                        {String(req.status).replace("_", " ")}
+                      </span>
+                    </td>
+                    <td className="px-5 py-4">
+                      {req.status === "pending_admin" ? (
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() =>
+                              setConfirmModal({ id: req.id, action: "approved" })
+                            }
+                            className="text-xs font-semibold text-emerald-600 hover:text-white bg-emerald-50 hover:bg-emerald-500 border border-emerald-200 hover:border-emerald-500 px-3 py-1.5 rounded-lg transition-all"
+                          >
+                            Approve
+                          </button>
+                          <button
+                            onClick={() =>
+                              setConfirmModal({ id: req.id, action: "rejected" })
+                            }
+                            className="text-xs font-semibold text-rose-500 hover:text-white bg-rose-50 hover:bg-rose-500 border border-rose-200 hover:border-rose-500 px-3 py-1.5 rounded-lg transition-all"
+                          >
+                            Reject
+                          </button>
+                        </div>
+                      ) : (
+                        <span className="text-xs text-slate-400">—</span>
+                      )}
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <Pagination
+        currentPage={currentPage}
+        totalPages={totalPages}
+        totalItems={filtered.length}
+        pageSize={pageSize}
+        onPageChange={setCurrentPage}
+        onPageSizeChange={(size) => { setPageSize(size); setCurrentPage(1); }}
+      />
+
+      {confirmModal &&
+        (() => {
+          const req = requests.find((r: LeaveRequest) => r.id === confirmModal.id);
+          const isApprove = confirmModal.action === "approved";
+          return (
+            <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+              <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-sm p-7">
+                <div
+                  className={`w-12 h-12 rounded-2xl flex items-center justify-center mb-4 ${
+                    isApprove ? "bg-emerald-100" : "bg-rose-100"
+                  }`}
+                >
+                  {isApprove ? (
+                    <svg
+                      className="w-6 h-6 text-emerald-600"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth={2}
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M5 13l4 4L19 7"
+                      />
+                    </svg>
+                  ) : (
+                    <svg
+                      className="w-6 h-6 text-rose-500"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth={2}
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M6 18L18 6M6 6l12 12"
+                      />
+                    </svg>
+                  )}
+                </div>
+                <h3 className="text-lg font-bold text-slate-800">
+                  {isApprove ? "Approve leave?" : "Reject leave?"}
+                </h3>
+                <p className="text-sm text-slate-500 mt-1.5 leading-relaxed">
+                  {req?.users?.name}'s{" "}
+                  <span className="font-semibold text-slate-700 capitalize">
+                    {req?.leave_type}
+                  </span>{" "}
+                  leave for{" "}
+                  <span className="font-semibold text-slate-700">
+                    {req &&
+                      (req.start_date === req.end_date
+                        ? formatDate(req.start_date)
+                        : `${formatDate(req.start_date)} – ${formatDate(req.end_date)}`)}
+                  </span>
+                  .
+                </p>
+                <textarea
+                  value={comments}
+                  onChange={(e) => setComments(e.target.value)}
+                  rows={3}
+                  placeholder="Add Admin comments (optional)..."
+                  className="w-full mt-4 px-3 py-2.5 border border-slate-200 rounded-xl text-sm text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-fuchsia-400 bg-slate-50 resize-none"
+                />
+                <div className="flex gap-3 mt-4">
+                  <button
+                    onClick={handleReview}
+                    disabled={reviewing}
+                    className={`flex-1 font-semibold py-2.5 rounded-xl transition-colors text-sm disabled:opacity-60 ${
+                      isApprove
+                        ? "bg-emerald-500 hover:bg-emerald-600 text-white"
+                        : "bg-rose-500 hover:bg-rose-600 text-white"
+                    }`}
+                  >
+                    {reviewing ? "..." : isApprove ? "Yes, Approve" : "Yes, Reject"}
+                  </button>
+                  <button
+                    onClick={() => {
+                      setConfirmModal(null);
+                      setComments("");
+                    }}
+                    className="flex-1 bg-white hover:bg-slate-50 text-slate-600 font-semibold py-2.5 rounded-xl border border-slate-200 transition-colors text-sm"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
+    </div>
+  );
+}

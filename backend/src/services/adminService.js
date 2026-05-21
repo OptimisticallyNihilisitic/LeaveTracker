@@ -15,7 +15,6 @@ export const getAllUsers = async () => {
 
 
 export const updateUser = async (userId, updates) => {
-  // If demoting from manager → non-manager role, cascade side-effects
   if (updates.role && updates.role !== "manager") {
     const { data: current } = await supabase
       .from("users")
@@ -24,13 +23,11 @@ export const updateUser = async (userId, updates) => {
       .single();
 
     if (current?.role === "manager") {
-      // 1. Unlink all subordinates
       await supabase
         .from("users")
         .update({ manager_id: null })
         .eq("manager_id", userId);
 
-      // 2. Re-route pending_manager leave requests → pending_hr
       await supabase
         .from("leave_requests")
         .update({ manager_id: null, status: "pending_hr" })
@@ -185,6 +182,12 @@ export const createUserWithAuth = async ({ email, password, name, employee_id, r
     if (!['manager', 'hr', 'admin'].includes(mgr.role)) {
       throw new Error("Reporting manager must have the Manager, HR, or Admin role");
     }
+    if (normalizedRole === 'hr' && mgr.role !== 'hr') {
+      throw new Error("HRs can only report to other HRs");
+    }
+    if (normalizedRole === 'admin' && mgr.role !== 'admin') {
+      throw new Error("Admins can only report to other Admins");
+    }
   }
 
   const { data, error } = await supabase
@@ -226,13 +229,11 @@ export const deleteUserWithAuth = async (userId) => {
     .single();
 
   if (userToDelete?.role === "manager") {
-    // 1. Unlink all subordinates
     await supabase
       .from("users")
       .update({ manager_id: null })
       .eq("manager_id", userId);
 
-    // 2. Re-route pending_manager leave requests → pending_hr
     await supabase
       .from("leave_requests")
       .update({ manager_id: null, status: "pending_hr" })
@@ -267,6 +268,16 @@ export const assignManager = async (userId, managerId) => {
     if (!['manager', 'hr', 'admin'].includes(mgr.role)) {
       throw new Error("Reporting manager must have the Manager, HR, or Admin role");
     }
+
+    const { data: userToAssign } = await supabase.from("users").select("role").eq("id", userId).single();
+    if (userToAssign) {
+      if (userToAssign.role === 'hr' && mgr.role !== 'hr') {
+        throw new Error("HRs can only report to other HRs");
+      }
+      if (userToAssign.role === 'admin' && mgr.role !== 'admin') {
+        throw new Error("Admins can only report to other Admins");
+      }
+    }
   }
 
   const { data, error } = await supabase
@@ -298,13 +309,33 @@ export const createInvitation = async ({ email, name, employee_id, role, manager
   const { data: existingInv } = await supabase.from('invitations').select('id, token').eq('email', email).eq('status', 'pending').maybeSingle();
   if (existingInv) throw new Error("A pending invitation for this email already exists");
 
+  const normalizedRole = String(role || "employee").toLowerCase();
+
+  if (manager_id) {
+    const { data: mgr, error: mgrError } = await supabase
+      .from("users")
+      .select("role")
+      .eq("id", manager_id)
+      .single();
+    if (mgrError || !mgr) throw new Error("Assigned manager not found");
+    if (!['manager', 'hr', 'admin'].includes(mgr.role)) {
+      throw new Error("Reporting manager must have the Manager, HR, or Admin role");
+    }
+    if (normalizedRole === 'hr' && mgr.role !== 'hr') {
+      throw new Error("HRs can only report to other HRs");
+    }
+    if (normalizedRole === 'admin' && mgr.role !== 'admin') {
+      throw new Error("Admins can only report to other Admins");
+    }
+  }
+
   const { data, error } = await supabase
     .from("invitations")
     .insert({
       email,
       name,
       employee_id,
-      role: String(role || "employee").toLowerCase(),
+      role: normalizedRole,
       manager_id: manager_id || null,
       status: "pending",
     })
@@ -363,4 +394,41 @@ export const resendInvitation = async (id) => {
   await sendInvitationEmail(updatedInv.email, updatedInv.name, updatedInv.token);
 
   return updatedInv;
+};
+
+export const createBulkInvitations = async (invitationsList, manager_id) => {
+  const results = { successful: 0, failed: 0, errors: [] };
+
+  for (const inv of invitationsList) {
+    try {
+      if (!inv.email || !inv.name || !inv.employee_id) {
+        throw new Error("Missing required fields (email, name, employee_id)");
+      }
+      
+      let roleToAssign = "employee";
+      if (inv.role && typeof inv.role === "string" && inv.role.toLowerCase() !== "na") {
+        roleToAssign = inv.role.toLowerCase();
+      }
+
+      const validRoles = ["employee", "manager", "hr", "admin"];
+      if (!validRoles.includes(roleToAssign)) {
+        roleToAssign = "employee";
+      }
+
+      await createInvitation({
+        email: inv.email.trim(),
+        name: inv.name.trim(),
+        employee_id: inv.employee_id.trim(),
+        role: roleToAssign,
+        manager_id: manager_id
+      });
+      
+      results.successful++;
+    } catch (error) {
+      results.failed++;
+      results.errors.push(`Failed for ${inv.email || 'unknown row'}: ${error.message}`);
+    }
+  }
+
+  return results;
 };

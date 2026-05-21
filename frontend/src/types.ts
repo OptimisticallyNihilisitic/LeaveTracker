@@ -38,7 +38,7 @@ export interface LeaveRequest {
   end_date: string;
   days: number;
   reason: string;
-  status: "pending_manager" | "pending_hr" | "approved" | "rejected";
+  status: "pending_manager" | "pending_hr" | "pending_admin" | "approved" | "rejected";
   applied_at: string;
   reviewed_at: string | null;
   reviewed_by: string | null;

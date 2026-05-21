@@ -26,3 +26,10 @@ export const hrReviewLeave = (token: string, id: string, body: {
   status: "approved" | "rejected";
   comments?: string;
 }) => apiFetch(`/api/leave/${id}/hr-review`, token, { method: "PATCH", body: JSON.stringify(body) });
+
+export const getAdminLeaves = (token: string) => apiFetch("/api/leave/admin/pending", token);
+
+export const adminReviewLeave = (token: string, id: string, body: {
+  status: "approved" | "rejected";
+  comments?: string;
+}) => apiFetch(`/api/leave/${id}/admin-review`, token, { method: "PATCH", body: JSON.stringify(body) });

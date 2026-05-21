@@ -34,4 +34,6 @@ router.post("/invitations",            ...adminOnly, adminController.createInvit
 router.patch("/invitations/:id/cancel",...adminOnly, adminController.cancelInvitation); //Cancel an invitation
 router.post("/invitations/:id/resend", ...adminOnly, adminController.resendInvitation); //Resend for existing invitation
 
+router.post("/invitations/bulk",       ...adminOnly, adminController.createBulkInvitations); //Create invitations in bulk
+
 export default router;

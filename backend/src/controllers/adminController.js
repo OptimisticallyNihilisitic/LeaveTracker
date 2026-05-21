@@ -223,3 +223,24 @@ export const resendInvitation = async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 };
+
+export const createBulkInvitations = async (req, res) => {
+  try {
+    const { invitations } = req.body;
+    
+    if (!invitations || !Array.isArray(invitations)) {
+      return res.status(400).json({ error: "An array of invitations is required" });
+    }
+
+    if (invitations.length === 0) {
+      return res.status(400).json({ error: "The invitations array cannot be empty" });
+    }
+
+    const manager_id = req.body.manager_id || null;
+
+    const data = await adminService.createBulkInvitations(invitations, manager_id);
+    res.status(201).json(data);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};

@@ -4,6 +4,7 @@ import { sendLeaveApplicationEmail, sendLeaveApprovalEmail, sendLeaveToHrEmail }
 const STATUS = {
   PENDING_MANAGER: "pending_manager",
   PENDING_HR: "pending_hr",
+  PENDING_ADMIN: "pending_admin",
   APPROVED: "approved",
   REJECTED: "rejected",
 };
@@ -13,6 +14,15 @@ const getAllHrEmails = async () => {
     .from("users")
     .select("email")
     .eq("role", "hr");
+  if (error) return [];
+  return data.map((u) => u.email).filter(Boolean);
+};
+
+const getAllAdminEmails = async () => {
+  const { data, error } = await supabase
+    .from("users")
+    .select("email")
+    .eq("role", "admin");
   if (error) return [];
   return data.map((u) => u.email).filter(Boolean);
 };
@@ -70,7 +80,9 @@ export const applyLeave = async ({ userId, leave_type, start_date, end_date, day
 
   let initialStatus;
   if (employee.role === "admin") {
-    initialStatus = STATUS.APPROVED;
+    initialStatus = employee.manager_id ? STATUS.PENDING_MANAGER : STATUS.APPROVED;
+  } else if (employee.role === "hr") {
+    initialStatus = employee.manager_id ? STATUS.PENDING_MANAGER : STATUS.PENDING_ADMIN;
   } else if (employee.manager_id) {
     initialStatus = STATUS.PENDING_MANAGER;
   } else {
@@ -110,6 +122,9 @@ export const applyLeave = async ({ userId, leave_type, start_date, end_date, day
     // No manager — notify all HRs directly
     const hrEmails = await getAllHrEmails();
     sendLeaveToHrEmail(hrEmails, employee.name, data).catch(console.error);
+  } else if (initialStatus === STATUS.PENDING_ADMIN) {
+    const adminEmails = await getAllAdminEmails();
+    sendLeaveToHrEmail(adminEmails, employee.name, data).catch(console.error);
   }
 
   return data;
@@ -212,7 +227,7 @@ export const reviewLeave = async ({ leaveId, managerId, status, comments }) => {
       sendLeaveApprovalEmail(empUser.email, managerUser.name, STATUS.REJECTED, leaveDetails).catch(console.error);
     }
   } else {
-    // Manager approved → notify all HRs
+    // Manager approved -> notify all HRs
     const { data: empUser } = await supabase.from("users").select("name").eq("id", existing.user_id).single();
     const hrEmails = await getAllHrEmails();
     sendLeaveToHrEmail(hrEmails, empUser?.name ?? "An employee", data).catch(console.error);
@@ -222,7 +237,6 @@ export const reviewLeave = async ({ leaveId, managerId, status, comments }) => {
 };
 
 export const getHrLeaves = async () => {
-  // Step 1: Fetch all HR user IDs
   const { data: hrUsers, error: hrUsersError } = await supabase
     .from("users")
     .select("id")
@@ -231,7 +245,6 @@ export const getHrLeaves = async () => {
   if (hrUsersError) throw hrUsersError;
   const hrIds = (hrUsers || []).map((u) => u.id);
 
-  // Step 2: Pending HR leaves
   const { data: pendingLeaves, error: pendingError } = await supabase
     .from("leave_requests")
     .select("*")
@@ -240,7 +253,6 @@ export const getHrLeaves = async () => {
 
   if (pendingError) throw pendingError;
 
-  // Step 3: History — approved/rejected leaves reviewed by an HR user
   let historyLeaves = [];
   if (hrIds.length > 0) {
     const { data: hd, error: he } = await supabase
@@ -319,6 +331,108 @@ export const hrReviewLeave = async ({ leaveId, hrId, status, comments }) => {
   if (hrId) {
     const { data: hrUser } = await supabase.from("users").select("name").eq("id", hrId).single();
     if (hrUser?.name) reviewerName = hrUser.name;
+  }
+
+  if (empUser?.email) {
+    const leaveDetails = { ...existing, comments: mergedComments };
+    sendLeaveApprovalEmail(empUser.email, reviewerName, finalStatus, leaveDetails).catch(console.error);
+  }
+
+  return data;
+};
+
+export const getAdminLeaves = async () => {
+  const { data: adminUsers, error: adminUsersError } = await supabase
+    .from("users")
+    .select("id")
+    .eq("role", "admin");
+
+  if (adminUsersError) throw adminUsersError;
+  const adminIds = (adminUsers || []).map((u) => u.id);
+
+  const { data: pendingLeaves, error: pendingError } = await supabase
+    .from("leave_requests")
+    .select("*")
+    .eq("status", STATUS.PENDING_ADMIN)
+    .order("applied_at", { ascending: false });
+
+  if (pendingError) throw pendingError;
+
+  let historyLeaves = [];
+  if (adminIds.length > 0) {
+    const { data: hd, error: he } = await supabase
+      .from("leave_requests")
+      .select("*")
+      .in("status", [STATUS.APPROVED, STATUS.REJECTED])
+      .in("reviewed_by", adminIds)
+      .order("applied_at", { ascending: false });
+
+    if (he) throw he;
+    historyLeaves = hd || [];
+  }
+
+  const seen = new Set();
+  const allLeaves = [...(pendingLeaves || []), ...historyLeaves].filter((l) => {
+    if (seen.has(l.id)) return false;
+    seen.add(l.id);
+    return true;
+  });
+
+  if (allLeaves.length === 0) return [];
+
+  const userIds = [...new Set(allLeaves.map((l) => l.user_id))];
+  const { data: users, error: usersError } = await supabase
+    .from("users")
+    .select("id, name, email, employee_id")
+    .in("id", userIds);
+
+  if (usersError) throw usersError;
+  const userMap = Object.fromEntries((users || []).map((u) => [u.id, u]));
+
+  return allLeaves
+    .map((l) => ({ ...l, users: userMap[l.user_id] ?? null }))
+    .sort((a, b) => new Date(b.applied_at).getTime() - new Date(a.applied_at).getTime());
+};
+
+export const adminReviewLeave = async ({ leaveId, adminId, status, comments }) => {
+  const { data: existing, error: fetchError } = await supabase
+    .from("leave_requests")
+    .select("id, status, user_id, leave_type, start_date, end_date, days, reason, comments, reviewed_by, reviewed_at")
+    .eq("id", leaveId)
+    .single();
+
+  if (fetchError || !existing) throw new Error("Leave request not found");
+  if (existing.status !== STATUS.PENDING_ADMIN) throw new Error("Leave is not pending Admin approval");
+
+  const finalStatus = status === STATUS.APPROVED ? STATUS.APPROVED : STATUS.REJECTED;
+
+  const mergedComments = (() => {
+    const adminLine = comments ? `Admin: ${comments}` : null;
+    if (!existing.comments && !adminLine) return null;
+    if (!existing.comments) return adminLine;
+    if (!adminLine) return existing.comments;
+    return `${existing.comments}\n${adminLine}`;
+  })();
+
+  const { data, error } = await supabase
+    .from("leave_requests")
+    .update({
+      status: finalStatus,
+      comments: mergedComments,
+      reviewed_by: adminId,
+      reviewed_at: new Date().toISOString(),
+    })
+    .eq("id", leaveId)
+    .select()
+    .single();
+
+  if (error) throw error;
+
+  const { data: empUser } = await supabase.from("users").select("email").eq("id", existing.user_id).single();
+  let reviewerName = "Admin";
+  if (adminId) {
+    const { data: adminUser } = await supabase.from("users").select("name").eq("id", adminId).single();
+    if (adminUser?.name) reviewerName = adminUser.name;
   }
 
   if (empUser?.email) {

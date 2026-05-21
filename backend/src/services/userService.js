@@ -8,7 +8,15 @@ export const getUserProfile = async (userId) => {
     .single();
 
   if (error) throw error;
-  return data;
+
+  const { count, error: countError } = await supabase
+    .from("users")
+    .select("*", { count: "exact", head: true })
+    .eq("manager_id", userId);
+
+  if (countError) throw countError;
+
+  return { ...data, has_subordinates: count > 0 };
 };
 
 export const getCurrentPolicy = async () => {

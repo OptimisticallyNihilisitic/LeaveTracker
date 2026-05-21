@@ -13,6 +13,7 @@ interface UserProfile {
   sick_leaves: number;
   casual_leaves: number;
   floater_leaves: number;
+  has_subordinates: boolean;
 }
 
 interface AuthContextType {

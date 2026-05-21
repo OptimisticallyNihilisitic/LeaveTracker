@@ -1,8 +1,8 @@
 import { useState, useMemo, useEffect } from "react";
 import { useAppDispatch, useAppSelector } from "../store/hooks";
 import { selectMyLeaves, selectLeavesStatus, fetchMyLeaves, invalidateLeaves } from "../store/leavesSlice";
+import { selectHolidays, selectHolidaysStatus, fetchHolidays, invalidateHolidays } from "../store/holidaysSlice";
 import { useAuth } from "../context/AuthContext";
-import { getHolidays } from "../api/admin";
 import type { LeaveRequest, Holiday } from "../types";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -271,8 +271,9 @@ export default function LeaveCalendar() {
   const status     = useAppSelector(selectLeavesStatus);
   const loading    = status === "loading";
 
-  const [holidays, setHolidays] = useState<Holiday[]>([]);
-  const [holidaysLoading, setHolidaysLoading] = useState(true);
+  const holidays = useAppSelector(selectHolidays);
+  const holidaysStatus = useAppSelector(selectHolidaysStatus);
+  const holidaysLoading = holidaysStatus === "loading";
 
   const now = new Date();
   const [viewYear,  setViewYear]  = useState(now.getFullYear());
@@ -280,14 +281,12 @@ export default function LeaveCalendar() {
   const [typeFilter, setTypeFilter] = useState<LeaveTypeFilter>("all");
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
 
-  // Fetch org-wide holidays once
   useEffect(() => {
-    if (!token) return;
-    getHolidays(token)
-      .then(setHolidays)
-      .catch(console.error)
-      .finally(() => setHolidaysLoading(false));
-  }, [token]);
+    if (token) {
+      dispatch(fetchMyLeaves({ token }));
+      dispatch(fetchHolidays({ token }));
+    }
+  }, [token, dispatch]);
 
   // Only approved + pending leaves (no rejected / cancelled)
   const visibleLeaves = useMemo(
@@ -360,9 +359,9 @@ export default function LeaveCalendar() {
   const handleRefresh = () => {
     if (!token) return;
     dispatch(invalidateLeaves());
+    dispatch(invalidateHolidays());
     dispatch(fetchMyLeaves({ token, force: true }));
-    setHolidaysLoading(true);
-    getHolidays(token).then(setHolidays).catch(console.error).finally(() => setHolidaysLoading(false));
+    dispatch(fetchHolidays({ token, force: true }));
   };
 
   const selectedDateObj    = selectedDate ? new Date(selectedDate + "T00:00:00") : null;

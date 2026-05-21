@@ -79,3 +79,14 @@ export const cancelInvitation = (token: string, id: string) =>
 
 export const resendInvitation = (token: string, id: string) =>
   apiFetch<InvitationRecord>(`/api/admin/invitations/${id}/resend`, token, { method: "POST" });
+
+export const createBulkInvitations = (token: string, body: {
+  invitations: Array<{
+    email: string;
+    name: string;
+    employee_id: string;
+    role?: string;
+  }>;
+  manager_id?: string | null;
+}) => apiFetch<{successful: number, failed: number, errors: string[]}>("/api/admin/invitations/bulk", token, { method: "POST", body: JSON.stringify(body) });
+

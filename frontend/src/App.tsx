@@ -7,6 +7,7 @@ import Leaves from "./pages/Leaves";
 import HolidayCalendar from "./pages/HolidayCalendar";
 import LeaveApprovals from "./pages/LeaveApprovals";
 import HrApprovals from "./pages/HrApprovals";
+import AdminApprovals from "./pages/AdminApprovals";
 import AdminUsers       from "./pages/admin/AdminUsers";
 import AdminInvitations from "./pages/admin/AdminInvitations";
 import AdminHierarchy   from "./pages/admin/AdminHierarchy";
@@ -22,14 +23,15 @@ import { useState, useEffect, useRef } from "react";
 
 type Page =
   | "dashboard" | "apply-leave" | "leaves"
-  | "holiday-calendar" | "leave-approvals" | "hr-approvals"
+  | "holiday-calendar" | "leave-approvals" | "hr-approvals" | "admin-approvals"
   | "change-password" | "leave-calendar"
   | "admin-users" | "admin-invitations" | "admin-hierarchy" | "admin-policy" | "admin-holidays";
 
 
 const VALID_DEEP_LINK_PAGES: Record<string, string> = {
-  "leave-approvals": "manager",
+  "leave-approvals": "",
   "hr-approvals": "hr",
+  "admin-approvals": "admin",
   "leaves": "", 
 };
 
@@ -112,15 +114,11 @@ function AppInner() {
   const ADMIN_PAGES = new Set(["admin-users", "admin-invitations", "admin-hierarchy", "admin-policy", "admin-holidays"]);
 
   const handleNavigate = (page: string) => {
-    // Guard manager-only pages
-    if (page === "leave-approvals" && user.role !== "manager") return;
-    // Guard HR-only pages
+    if (page === "leave-approvals" && user.role !== "manager" && !user.has_subordinates) return;
     if (page === "hr-approvals" && user.role !== "hr") return;
-    // Guard admin-only pages
+    if (page === "admin-approvals" && user.role !== "admin") return;
     if (ADMIN_PAGES.has(page) && user.role !== "admin") return;
-    // Guard employee-only pages from admin
-    if (user.role === "admin" && !ADMIN_PAGES.has(page) && page !== "change-password") return;
-    // Calendar available to all non-admin roles
+    if (user.role === "admin" && !ADMIN_PAGES.has(page) && page !== "change-password" && page !== "admin-approvals" && page !== "leave-approvals" && page !== "apply-leave") return;
     if (page === "leave-calendar" && user.role === "admin") return;
     setCurrentPage(page as Page);
   };
@@ -128,12 +126,13 @@ function AppInner() {
   const renderPage = () => {
     switch (activePage) {
       case "dashboard":             return <Dashboard />;
-      case "apply-leave":           return (user.role === "employee" || user.role === "manager" || user.role === "hr") ? <ApplyLeave /> : <Dashboard />;
+      case "apply-leave":           return (user.role === "employee" || user.role === "manager" || user.role === "hr" || user.role === "admin") ? <ApplyLeave /> : <Dashboard />;
       case "leaves":                return <Leaves />;
       case "holiday-calendar":      return <HolidayCalendar />;
       case "leave-calendar":        return user.role !== "admin" ? <LeaveCalendar /> : <Dashboard />;
-      case "leave-approvals":       return user.role === "manager" ? <LeaveApprovals /> : <Dashboard />;
+      case "leave-approvals":       return (user.role === "manager" || user.has_subordinates) ? <LeaveApprovals /> : <Dashboard />;
       case "hr-approvals":          return user.role === "hr" ? <HrApprovals /> : <Dashboard />;
+      case "admin-approvals":       return user.role === "admin" ? <AdminApprovals /> : <Dashboard />;
       case "admin-users":           return user.role === "admin" ? <AdminUsers /> : <Dashboard />;
       case "admin-invitations":     return user.role === "admin" ? <AdminInvitations /> : <Dashboard />;
       case "admin-hierarchy":       return user.role === "admin" ? <AdminHierarchy /> : <Dashboard />;

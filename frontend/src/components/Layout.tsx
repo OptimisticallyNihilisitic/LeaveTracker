@@ -16,43 +16,6 @@ const employeeNav: NavItem[] = [
   { kind: "section", label: "Account" },
   { kind: "link", label: "Change Password", page: "change-password" },
 ];
-
-const managerNav: NavItem[] = [
-  { kind: "section", label: "Overview" },
-  { kind: "link", label: "Dashboard", page: "dashboard" },
-  { kind: "section", label: "Leave Management" },
-  { kind: "link", label: "Apply for Leave", page: "apply-leave" },
-  { kind: "link", label: "Leaves", page: "leaves" },
-  { kind: "link", label: "Leave Calendar", page: "leave-calendar" },
-  { kind: "link", label: "Holiday Calendar", page: "holiday-calendar" },
-  { kind: "link", label: "Leave Approvals", page: "leave-approvals" },
-  { kind: "section", label: "Account" },
-  { kind: "link", label: "Change Password", page: "change-password" },
-];
-
-const hrNav: NavItem[] = [
-  { kind: "section", label: "Overview" },
-  { kind: "link", label: "Dashboard", page: "dashboard" },
-  { kind: "section", label: "Leave Management" },
-  { kind: "link", label: "HR Approvals", page: "hr-approvals" },
-  { kind: "link", label: "Leaves", page: "leaves" },
-  { kind: "link", label: "Leave Calendar", page: "leave-calendar" },
-  { kind: "link", label: "Holiday Calendar", page: "holiday-calendar" },
-  { kind: "section", label: "Account" },
-  { kind: "link", label: "Change Password", page: "change-password" },
-];
-
-const adminNav: NavItem[] = [
-  { kind: "section", label: "Administration" },
-  { kind: "link", label: "Users",               page: "admin-users" },
-  { kind: "link", label: "Invitations",         page: "admin-invitations" },
-  { kind: "link", label: "Reporting Hierarchy", page: "admin-hierarchy" },
-  { kind: "link", label: "Leave Policy",        page: "admin-policy" },
-  { kind: "link", label: "Holidays",            page: "admin-holidays" },
-  { kind: "section", label: "Account" },
-  { kind: "link", label: "Change Password",     page: "change-password" },
-];
-
 interface LayoutProps {
   currentPage: string;
   onNavigate: (page: string) => void;
@@ -61,14 +24,55 @@ interface LayoutProps {
 
 export default function Layout({ currentPage, onNavigate, children }: LayoutProps) {
   const { user, logout } = useAuth();
+  
+  let navItems: NavItem[] = [];
 
-  const navItems =
-    user?.role === "admin"   ? adminNav
-    : user?.role === "manager" ? managerNav
-    : user?.role === "hr"      ? hrNav
-    : employeeNav;
-
-
+  if (user?.role === "admin") {
+    navItems = [
+      { kind: "section", label: "Administration" },
+      { kind: "link", label: "Users",               page: "admin-users" },
+      { kind: "link", label: "Invitations",         page: "admin-invitations" },
+      { kind: "link", label: "Reporting Hierarchy", page: "admin-hierarchy" },
+      { kind: "link", label: "Leave Policy",        page: "admin-policy" },
+      { kind: "link", label: "Holidays",            page: "admin-holidays" },
+      { kind: "section", label: "Admin Actions" },
+      { kind: "link", label: "Apply for Leave",     page: "apply-leave" },
+      { kind: "link", label: "My Leaves",           page: "leaves" },
+      { kind: "link", label: "Admin Approvals",     page: "admin-approvals" },
+      ...(user.has_subordinates ? [{ kind: "link", label: "Team Approvals", page: "leave-approvals" }] as NavItem[] : []),
+      { kind: "section", label: "Account" },
+      { kind: "link", label: "Change Password",     page: "change-password" },
+    ];
+  } else if (user?.role === "hr") {
+    navItems = [
+      { kind: "section", label: "Overview" },
+      { kind: "link", label: "Dashboard", page: "dashboard" },
+      { kind: "section", label: "Leave Management" },
+      { kind: "link", label: "Apply for Leave", page: "apply-leave" },
+      { kind: "link", label: "Leaves", page: "leaves" },
+      { kind: "link", label: "Leave Calendar", page: "leave-calendar" },
+      { kind: "link", label: "Holiday Calendar", page: "holiday-calendar" },
+      { kind: "link", label: "HR Approvals", page: "hr-approvals" },
+      ...(user.has_subordinates ? [{ kind: "link", label: "Team Approvals", page: "leave-approvals" }] as NavItem[] : []),
+      { kind: "section", label: "Account" },
+      { kind: "link", label: "Change Password", page: "change-password" },
+    ];
+  } else if (user?.role === "manager") {
+    navItems = [
+      { kind: "section", label: "Overview" },
+      { kind: "link", label: "Dashboard", page: "dashboard" },
+      { kind: "section", label: "Leave Management" },
+      { kind: "link", label: "Apply for Leave", page: "apply-leave" },
+      { kind: "link", label: "Leaves", page: "leaves" },
+      { kind: "link", label: "Leave Calendar", page: "leave-calendar" },
+      { kind: "link", label: "Holiday Calendar", page: "holiday-calendar" },
+      { kind: "link", label: "Team Approvals", page: "leave-approvals" },
+      { kind: "section", label: "Account" },
+      { kind: "link", label: "Change Password", page: "change-password" },
+    ];
+  } else {
+    navItems = employeeNav;
+  }
 
   return (
     <div className="min-h-screen bg-app flex font-sans">

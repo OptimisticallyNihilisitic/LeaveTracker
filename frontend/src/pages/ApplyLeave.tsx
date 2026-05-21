@@ -1,39 +1,34 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "../context/AuthContext";
-import { applyLeave, getMyLeaves } from "../api/leave";
-import { getCurrentPolicy } from "../api/user";
-import { getHolidays } from "../api/admin";
-import type { LeaveRequest, Holiday } from "../types";
+import { useAppDispatch, useAppSelector } from "../store/hooks";
+import { fetchMyLeaves, selectMyLeaves, invalidateLeaves } from "../store/leavesSlice";
+import { fetchHolidays, selectHolidays } from "../store/holidaysSlice";
+import { fetchCurrentPolicy, selectCurrentPolicy } from "../store/policySlice";
+import { applyLeave } from "../api/leave";
 
 export default function ApplyLeave() {
   const { user, token } = useAuth();
+  const dispatch = useAppDispatch();
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [leaveType, setLeaveType] = useState("");
   const [reason, setReason] = useState("");
   const [loading, setLoading] = useState(false);
   
-  const [policy, setPolicy] = useState<any>(null);
-  const [leaves, setLeaves] = useState<LeaveRequest[]>([]);
-  const [holidays, setHolidays] = useState<Holiday[]>([]);
+  const policy = useAppSelector(selectCurrentPolicy);
+  const leaves = useAppSelector(selectMyLeaves);
+  const holidays = useAppSelector(selectHolidays);
   
   const [error, setError] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
 
   useEffect(() => {
-    if (!token) return;
-    Promise.all([
-      getCurrentPolicy(token),
-      getMyLeaves(token),
-      getHolidays(token),
-    ])
-      .then(([policyData, leavesData, holidaysData]) => {
-        setPolicy(policyData);
-        setLeaves(leavesData as LeaveRequest[]);
-        setHolidays(holidaysData as Holiday[]);
-      })
-      .catch(console.error);
-  }, [token]);
+    if (token) {
+      dispatch(fetchCurrentPolicy({ token }));
+      dispatch(fetchMyLeaves({ token }));
+      dispatch(fetchHolidays({ token }));
+    }
+  }, [token, dispatch]);
  
   // Calculate leaves left dynamically
   const consumedCasual = leaves
@@ -155,18 +150,18 @@ export default function ApplyLeave() {
         reason,
       });
       
-      const isAutoApproved = user?.role === "admin" || (user?.role === "manager" && !user?.manager_id) || leaveType === "sick";
+      const isAutoApproved = user?.role === "admin" && !user?.manager_id;
       if (isAutoApproved) {
         setSuccessMsg("Leave request auto-approved successfully and recorded to your balance!");
       } else {
-        setSuccessMsg("Leave request submitted successfully! Your manager will be notified.");
+        setSuccessMsg("Leave request submitted successfully! Your manager or HR/Admin will be notified.");
       }
       
       setFrom(""); setTo(""); setLeaveType(""); setReason("");
       
       // Optionally refresh leaves data to update balances immediately
-      const newLeaves = await getMyLeaves(token!);
-      setLeaves(newLeaves as LeaveRequest[]);
+      dispatch(invalidateLeaves());
+      dispatch(fetchMyLeaves({ token: token!, force: true }));
     } catch (err: any) {
       setError(err.message);
     } finally {

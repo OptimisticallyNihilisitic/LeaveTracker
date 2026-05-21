@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useAuth } from "../context/AuthContext";
-import { getHolidays } from "../api/admin";
+import { useAppDispatch, useAppSelector } from "../store/hooks";
+import { fetchHolidays, selectHolidays, selectHolidaysStatus } from "../store/holidaysSlice";
 import type { Holiday } from "../types";
 
 const formatDate = (d: string) =>
@@ -33,13 +34,14 @@ const HolidayTable = ({ data, color, loading }: { data: Holiday[]; color: "emera
 
 export default function HolidayCalendar() {
   const { token } = useAuth();
-  const [holidays, setHolidays] = useState<Holiday[]>([]);
-  const [loading, setLoading] = useState(true);
+  const dispatch = useAppDispatch();
+  const holidays = useAppSelector(selectHolidays);
+  const status = useAppSelector(selectHolidaysStatus);
+  const loading = status === "loading";
 
   useEffect(() => {
-    if (!token) return;
-    getHolidays(token).then(setHolidays).catch(console.error).finally(() => setLoading(false));
-  }, [token]);
+    if (token) dispatch(fetchHolidays({ token }));
+  }, [token, dispatch]);
 
   
   const mandatory = holidays.filter((h) => !h.is_floater);

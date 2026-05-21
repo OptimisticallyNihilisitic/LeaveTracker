@@ -1,25 +1,19 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext";
+import { useAppDispatch, useAppSelector } from "../store/hooks";
+import { selectAdminUsers, selectAdminUsersStatus, selectAdminInvitations, selectAdminInvitationsStatus, selectAdminPolicies, selectAdminPoliciesStatus, fetchAdminUsers, fetchAdminInvitations, fetchAdminPolicies, invalidateAdminUsers, invalidateAdminInvitations, invalidateAdminPolicies } from "../store/adminDataSlice";
+import { selectHolidays, selectHolidaysStatus, fetchHolidays, invalidateHolidays } from "../store/holidaysSlice";
 import {
-  getPolicies, upsertPolicy,
-  getHolidays, addHoliday, deleteHoliday,
-  createUser, deleteUser, assignManager, getAllUsers, updateUser,
-  getInvitations, createInvitation, cancelInvitation, resendInvitation, type InvitationRecord
+  upsertPolicy,
+  addHoliday, deleteHoliday,
+  createUser, deleteUser, assignManager, updateUser,
+  createInvitation, cancelInvitation, resendInvitation, createBulkInvitations
 } from "../api/admin";
 import Pagination from "../components/Pagination";
 
 
 type Tab = "users" | "invitations" | "hierarchy" | "policy" | "holidays";
 
-
-interface UserRecord {
-  id: string;
-  name: string;
-  email: string;
-  employee_id: string;
-  role: "employee" | "manager" | "hr" | "admin";
-  manager_id: string | null;
-}
 
 const ROLE_STYLES: Record<string, string> = {
   employee: "bg-emerald-100 text-emerald-700",
@@ -35,8 +29,16 @@ export default function AdminPanel() {
   const [error, setError]   = useState("");
   const [success, setSuccess] = useState("");
 
-  const [users, setUsers] = useState<UserRecord[]>([]);
-  const [usersLoading, setUsersLoading] = useState(true);
+  const dispatch = useAppDispatch();
+  const users = useAppSelector(selectAdminUsers);
+  const usersLoading = useAppSelector(selectAdminUsersStatus) === "loading";
+  const invitations = useAppSelector(selectAdminInvitations);
+  const invitationsLoading = useAppSelector(selectAdminInvitationsStatus) === "loading";
+  const policies = useAppSelector(selectAdminPolicies);
+  const policyLoading = useAppSelector(selectAdminPoliciesStatus) === "loading";
+  const holidays = useAppSelector(selectHolidays);
+  const holidayLoading = useAppSelector(selectHolidaysStatus) === "loading";
+
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [userForm, setUserForm] = useState({
     name: "", email: "", employee_id: "", password: "",
@@ -46,29 +48,26 @@ export default function AdminPanel() {
   const [userFormLoading, setUserFormLoading] = useState(false);
   const [showUserForm, setShowUserForm] = useState(false);
 
-  const [invitations, setInvitations] = useState<InvitationRecord[]>([]);
-  const [invitationsLoading, setInvitationsLoading] = useState(true);
   const [showInviteForm, setShowInviteForm] = useState(false);
+  const [showBulkInviteForm, setShowBulkInviteForm] = useState(false);
+  const [bulkInviteLoading, setBulkInviteLoading] = useState(false);
   const [inviteForm, setInviteForm] = useState({
     name: "", email: "", employee_id: "", role: "employee" as "employee" | "manager" | "hr" | "admin", manager_id: ""
   });
   const [inviteFormLoading, setInviteFormLoading] = useState(false);
 
   const [hierarchyChanges, setHierarchyChanges] = useState<Record<string, string | null>>({});
-
   const [roleChanges, setRoleChanges] = useState<Record<string, string>>({});
   const [savingHierarchy, setSavingHierarchy] = useState(false);
 
-  const [policies, setPolicies] = useState<any[]>([]);
   const [policyForm, setPolicyForm] = useState({
     year: new Date().getFullYear(),
     sick_leaves: 0, casual_leaves: 0, floater_leaves: 0,
   });
-  const [policyLoading, setPolicyLoading] = useState(false);
+  const [policySubmitLoading, setPolicyLoading] = useState(false);
 
-  const [holidays, setHolidays] = useState<any[]>([]);
   const [holidayForm, setHolidayForm] = useState({ policy_id: "", name: "", date: "", is_floater: false });
-  const [holidayLoading, setHolidayLoading] = useState(false);
+  const [holidaySubmitLoading, setHolidayLoading] = useState(false);
   const [deletingHolidayId, setDeletingHolidayId] = useState<string | null>(null);
 
   // Pagination states per tab
@@ -87,44 +86,28 @@ export default function AdminPanel() {
   const [hierarchySearch, setHierarchySearch] = useState("");
   const [holidaysSearch, setHolidaysSearch] = useState("");
 
-  const fetchUsers = async () => {
+  const fetchUsers = () => {
     if (!token) return;
-    setUsersLoading(true);
-    try {
-      const data = await getAllUsers(token);
-      setUsers(data);
-      setUsersPage(1);
-      setHierarchyPage(1);
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setUsersLoading(false);
-    }
+    dispatch(invalidateAdminUsers());
+    dispatch(fetchAdminUsers({ token, force: true }));
+    setUsersPage(1);
+    setHierarchyPage(1);
   };
 
-  const fetchInvitations = async () => {
+  const fetchInvitations = () => {
     if (!token) return;
-    setInvitationsLoading(true);
-    try {
-      const data = await getInvitations(token);
-      setInvitations(data);
-      setInvitationsPage(1);
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setInvitationsLoading(false);
-    }
+    dispatch(invalidateAdminInvitations());
+    dispatch(fetchAdminInvitations({ token, force: true }));
+    setInvitationsPage(1);
   };
 
-
-  const fetchPoliciesAndHolidays = async () => {
+  const fetchPoliciesAndHolidays = () => {
     if (!token) return;
-    try {
-      const [p, h] = await Promise.all([getPolicies(token), getHolidays(token)]);
-      setPolicies(p);
-      setHolidays(h);
-      setHolidaysPage(1);
-      if (p.length > 0) {
+    dispatch(invalidateAdminPolicies());
+    dispatch(invalidateHolidays());
+    dispatch(fetchAdminPolicies({ token, force: true })).then((res) => {
+      const p = res.payload as any[];
+      if (p && p.length > 0) {
         const latest = p[0];
         setPolicyForm({
           year: latest.year,
@@ -134,16 +117,33 @@ export default function AdminPanel() {
         });
         setHolidayForm((f) => ({ ...f, policy_id: latest.id }));
       }
-    } catch (err: any) {
-      setError(err.message);
-    }
+    });
+    dispatch(fetchHolidays({ token, force: true }));
+    setHolidaysPage(1);
   };
 
   useEffect(() => {
-    fetchUsers();
-    fetchInvitations();
-    fetchPoliciesAndHolidays();
-  }, [token]);
+    if (!token) return;
+    
+    // Dispatch fetches without forcing to utilize cache
+    dispatch(fetchAdminUsers({ token }));
+    dispatch(fetchAdminInvitations({ token }));
+    
+    dispatch(fetchAdminPolicies({ token })).then((res) => {
+      const p = res.payload as any[];
+      if (p && p.length > 0) {
+        const latest = p[0];
+        setPolicyForm({
+          year: latest.year,
+          sick_leaves: latest.sick_leaves,
+          casual_leaves: latest.casual_leaves,
+          floater_leaves: latest.floater_leaves,
+        });
+        setHolidayForm((f) => ({ ...f, policy_id: latest.id }));
+      }
+    });
+    dispatch(fetchHolidays({ token }));
+  }, [token, dispatch]);
 
 
   const notify = (msg: string, isError = false) => {
@@ -235,6 +235,67 @@ export default function AdminPanel() {
     } catch (err: any) {
       notify(err.message, true);
     }
+  };
+
+  const handleBulkUpload = (file: File) => {
+    if (!file) return;
+    setBulkInviteLoading(true);
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      const text = e.target?.result;
+      if (typeof text !== "string") {
+        setBulkInviteLoading(false);
+        return;
+      }
+      const lines = text.split("\n").map(l => l.trim()).filter(l => l);
+      if (lines.length === 0) {
+        notify("CSV is empty", true);
+        setBulkInviteLoading(false);
+        return;
+      }
+      
+      const parsedInvs = [];
+      let startIdx = 0;
+      if (lines[0].toLowerCase().includes("name") || lines[0].toLowerCase().includes("email")) {
+        startIdx = 1;
+      }
+      for (let i = startIdx; i < lines.length; i++) {
+        const parts = lines[i].split(",").map(p => p.trim());
+        if (parts.length >= 4) {
+          parsedInvs.push({
+            name: parts[0],
+            employee_id: parts[1],
+            role: parts[2] || "employee",
+            email: parts[3]
+          });
+        }
+      }
+      
+      if (parsedInvs.length === 0) {
+        notify("No valid rows found in CSV", true);
+        setBulkInviteLoading(false);
+        return;
+      }
+
+      try {
+        const res = await createBulkInvitations(token!, { invitations: parsedInvs });
+        notify(`Bulk invite complete: ${res.successful} sent, ${res.failed} failed.`);
+        if (res.errors && res.errors.length > 0) {
+          console.error("Bulk invite errors:", res.errors);
+        }
+        setShowBulkInviteForm(false);
+        fetchInvitations();
+      } catch (err: any) {
+        notify(err.message, true);
+      } finally {
+        setBulkInviteLoading(false);
+      }
+    };
+    reader.onerror = () => {
+      notify("Failed to read file", true);
+      setBulkInviteLoading(false);
+    };
+    reader.readAsText(file);
   };
 
 
@@ -520,7 +581,11 @@ export default function AdminPanel() {
                 <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" /></svg>
                 <input type="text" value={invitationsSearch} onChange={(e) => { setInvitationsSearch(e.target.value); setInvitationsPage(1); }} placeholder="Search invitations..." className="pl-9 pr-4 py-2 w-48 border border-slate-200 rounded-xl text-sm text-slate-700 placeholder-slate-400 bg-white focus:outline-none focus:ring-2 focus:ring-slate-300" />
               </div>
-              <button onClick={() => setShowInviteForm((v) => !v)}
+              <button onClick={() => { setShowBulkInviteForm((v) => !v); setShowInviteForm(false); }}
+                className="bg-blue-500 hover:bg-blue-600 text-white text-sm font-semibold px-4 py-2 rounded-xl transition-colors shadow-sm whitespace-nowrap">
+                {showBulkInviteForm ? "Cancel" : "Upload CSV"}
+              </button>
+              <button onClick={() => { setShowInviteForm((v) => !v); setShowBulkInviteForm(false); }}
                 className="bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-semibold px-4 py-2 rounded-xl transition-colors shadow-sm whitespace-nowrap">
                 {showInviteForm ? "Cancel" : "+ Invite Employee"}
               </button>
@@ -574,6 +639,29 @@ export default function AdminPanel() {
                 className="bg-emerald-500 hover:bg-emerald-600 disabled:opacity-60 text-white font-semibold px-6 py-2.5 rounded-xl transition-colors shadow-sm">
                 {inviteFormLoading ? "Sending..." : "Send Invitation"}
               </button>
+            </div>
+          )}
+
+          {showBulkInviteForm && (
+            <div className="bg-slate-50 rounded-2xl border border-slate-200 p-6 space-y-4">
+              <h4 className="font-semibold text-slate-700">Bulk Invite via CSV</h4>
+              <p className="text-sm text-slate-500">
+                Upload a CSV file with the following column structure (headers optional, but recommended):
+                <br /><code className="bg-slate-200 px-1 py-0.5 rounded">emp name, emp id, role, email</code>
+              </p>
+              <div>
+                <input type="file" accept=".csv"
+                  onChange={(e) => {
+                    if (e.target.files && e.target.files.length > 0) {
+                      handleBulkUpload(e.target.files[0]);
+                      e.target.value = ''; // reset so same file can be uploaded again if needed
+                    }
+                  }}
+                  disabled={bulkInviteLoading}
+                  className="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 transition-colors cursor-pointer"
+                />
+              </div>
+              {bulkInviteLoading && <p className="text-sm text-blue-600 font-semibold">Processing CSV data and sending invitations...</p>}
             </div>
           )}
 
@@ -769,9 +857,9 @@ export default function AdminPanel() {
             ))}
           </div>
 
-          <button onClick={handlePolicySubmit} disabled={policyLoading}
+          <button onClick={handlePolicySubmit} disabled={policySubmitLoading}
             className="bg-emerald-500 hover:bg-emerald-600 disabled:opacity-60 text-white font-semibold px-6 py-2.5 rounded-xl transition-colors shadow-sm">
-            {policyLoading ? "Saving..." : "Save Policy"}
+            {policySubmitLoading ? "Saving..." : "Save Policy"}
           </button>
 
           {policies.length > 0 && (
@@ -847,9 +935,9 @@ export default function AdminPanel() {
                   className="w-4 h-4 text-emerald-500 rounded border-slate-300 focus:ring-emerald-400" />
                 <span className="text-sm font-semibold text-slate-700">This is a Restricted / Floater Holiday</span>
               </label>
-              <button onClick={handleAddHoliday} disabled={holidayLoading}
+              <button onClick={handleAddHoliday} disabled={holidaySubmitLoading}
                 className="w-full sm:w-auto px-8 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-60 text-white font-semibold py-2.5 rounded-xl transition-colors shadow-sm">
-                {holidayLoading ? "Adding..." : "Add Holiday"}
+                {holidaySubmitLoading ? "Adding..." : "Add Holiday"}
               </button>
             </div>
           </div>
